@@ -73,7 +73,7 @@ namespace Jpeg
   0.27778511650980114,
   -0.09754516100806417 } };
         private static readonly double[] alpha = new double[8] { 0.5, 0.4903926402016152, 0.46193976625564337, 0.4157348061512726, 0.3535533905932738, 0.27778511650980114, 0.19134171618254492, 0.09754516100806417 };
-        private static volatile int[,] LQM = new int[8, 8] {
+        private static readonly int[,] LQM = new int[8, 8] {
   { 16, 11, 10, 16, 24, 40, 51, 61 },
   { 12, 12, 14, 19, 26, 58, 60, 55 },
   { 14, 13, 16, 24, 40, 57, 69, 56 },
@@ -83,7 +83,7 @@ namespace Jpeg
   { 49, 64, 78, 87, 103, 121, 120, 101 },
   { 72, 92, 95, 98, 112, 100, 103, 99 },
 };
-        private static volatile int[,] CQM = new int[8, 8] {
+        private static readonly int[,] CQM = new int[8, 8] {
   { 17, 18, 24, 47, 99, 99, 99, 99 },
   { 18, 21, 26, 66, 99, 99, 99, 99 },
   { 24, 26, 56, 99, 99, 99, 99, 99 },
@@ -101,42 +101,29 @@ namespace Jpeg
         /// </summary>
         private struct Block
         {
-            public byte[][] A;
+            public double[][] A;
 
             //public System.Collections.BitArray sgn = new System.Collections.BitArray(64);
             public void DCTandQMethod(bool type)
             {
-                double[][] tempBlock = new double[8][];
                 for (int i = 0; i < 8; ++i)
                 {
-                    tempBlock[i] = new double[8];
-                    DCT1D(in this.A[i], ref tempBlock[i]);
+                    DoublesDCT1D(ref this.A[i]);
                 }
-                transpose(ref tempBlock);
+                transpose(ref this.A);
                 for (int i = 0; i < 8; ++i)
                 {
-                    DoublesDCT1D(ref tempBlock[i]);
+                    DoublesDCT1D(ref this.A[i]);
                 }
-                transpose(ref tempBlock);
+                transpose(ref this.A);
                 switch (type)
                 {
                     case true:
-                        Quantize(ref tempBlock, LQM, 90);
+                        Quantize(ref this, LQM, 80);
                         break;
                     case false:
-                        Quantize(ref tempBlock, CQM, 90);
+                        Quantize(ref this, CQM, 80);
                         break;
-                }
-                for (int i = 0; i < 8; ++i)
-                {
-                    for (int j = 0; j < 8; ++j)
-                    {
-                        this.A[i][j] = (byte)(char)(int)tempBlock[i][j];
-                        //if (this.A[i][j] > 254 && i+j != 0)
-                        //{
-                            //this.A[i][j] = 0;
-                        //}
-                    }
                 }
 
             }
@@ -159,56 +146,46 @@ namespace Jpeg
 
             public void IQuantizationAndIDCTMethod(bool type)
             {
-                double[][] iBl = new double[8][];
-                iBl[0] = new double[8];
-                iBl[1] = new double[8];
-                iBl[2] = new double[8];
-                iBl[3] = new double[8];
-                iBl[4] = new double[8];
-                iBl[5] = new double[8];
-                iBl[6] = new double[8];
-                iBl[7] = new double[8];
-                switch (type)
-                {
-                    case true:
-                        QuantizeI(ref this, ref iBl, LQM, 90);
-                        break;
-                    case false:
-                        QuantizeI(ref this, ref iBl, CQM, 90);
-                        break;
-                }
-                IDCT(ref iBl[0]);
-                IDCT(ref iBl[1]);
-                IDCT(ref iBl[2]);
-                IDCT(ref iBl[3]);
-                IDCT(ref iBl[4]);
-                IDCT(ref iBl[5]);
-                IDCT(ref iBl[6]);
-                IDCT(ref iBl[7]);
-                transpose(ref iBl);
-                IDCT(ref iBl[0]);
-                IDCT(ref iBl[1]);
-                IDCT(ref iBl[2]);
-                IDCT(ref iBl[3]);
-                IDCT(ref iBl[4]);
-                IDCT(ref iBl[5]);
-                IDCT(ref iBl[6]);
-                IDCT(ref iBl[7]);
-                transpose(ref iBl);
                 for (int i = 0; i < 8; ++i)
                 {
                     for (int j = 0; j < 8; ++j)
                     {
-                        if (iBl[i][j] < 0)
+                        if (this.A[i][j] > 127)
                         {
-                            iBl[i][j] = -iBl[i][j];
+                            this.A[i][j] = 256 - this.A[i][j];
                         }
-                        this.A[i][j] = (byte)(char)(int)iBl[i][j];
                     }
                 }
+                switch (type)
+                {
+                    case true:
+                        QuantizeI(ref this, LQM, 80);
+                        break;
+                    case false:
+                        QuantizeI(ref this, CQM, 80);
+                        break;
+                }
+                transpose(ref this.A);
+                IDCT(ref this.A[0]);
+                IDCT(ref this.A[1]);
+                IDCT(ref this.A[2]);
+                IDCT(ref this.A[3]);
+                IDCT(ref this.A[4]);
+                IDCT(ref this.A[5]);
+                IDCT(ref this.A[6]);
+                IDCT(ref this.A[7]);
+                transpose(ref this.A);
+                IDCT(ref this.A[0]);
+                IDCT(ref this.A[1]);
+                IDCT(ref this.A[2]);
+                IDCT(ref this.A[3]);
+                IDCT(ref this.A[4]);
+                IDCT(ref this.A[5]);
+                IDCT(ref this.A[6]);
+                IDCT(ref this.A[7]);
             }
 
-            private void QuantizeIM(ref double[][] bl, int[,] Q, int phi)
+            /*private void QuantizeIM(ref double[][] bl, int[,] Q, int phi)
             {
                 int S = 200 - 2 * phi;
                 if (phi < 50)
@@ -231,13 +208,56 @@ namespace Jpeg
                         //}
                     }
                 }
-            }
+            }*/
             public Block(int sz)
             {
-                A = new byte[sz][];
+                A = new double[sz][];
                 for (int i = 0; i < sz; ++i)
                 {
-                    A[i] = new byte[sz];
+                    A[i] = new double[sz];
+                }
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="bl"></param>
+        /// <param name="Q"></param>
+        /// <param name="phi"></param>
+        private static void Quantize(ref Block bl, int[,] Q, int phi)
+        {
+            int S = 200 - 2 * phi;
+            if (phi < 50)
+            {
+                S = 5000 / phi;
+            }
+            for (int i = 0; i < 8; ++i)
+            {
+                for (int j = 0; j < 8; ++j)
+                {
+                    bl.A[i][j] /= Math.Ceiling((Q[i, j] * S + 50) / 100.0);
+                    //bl[i][j] = Math.Floor(bl[i][j]);
+                }
+            }
+        }
+
+        private static void QuantizeI(ref Block orig, int[,] Q, int phi)
+        {
+            int S = 200 - 2 * phi;
+            if (phi < 50 && phi > 0)
+            {
+                S = 5000 / phi;
+            }
+            for (int i = 0; i < 8; ++i)
+            {
+                for (int j = 0; j < 8; ++j)
+                {
+                    orig.A[i][j] *= Math.Ceiling(((Q[i, j] * S + 50) / 100.0));
+                    //if (bl[i][j] < 0)
+                    //{
+                    //bl[i][j] = 0;
+                    //}
                 }
             }
         }
@@ -409,12 +429,12 @@ namespace Jpeg
             //int numberOfBlocks = ((width + 7) / 8) * ((height + 7) / 8);
             //blocks = new Block[numberOfBlocks];
             int curPos = 0;
-            Block temp;
+            /*Block temp;
             temp.A = new byte[8][];
             for (int k = 0; k < 8; ++k)
             {
                 temp.A[k] = new byte[8];
-            }
+            }*/
             for (int i = 0; i < width; i += 8)
             {
                 for (int j = 0; j < height; j += 8)
@@ -424,33 +444,33 @@ namespace Jpeg
                         for (int cj = j; cj < j + 8; ++cj)
                         {
                             int cpos = ci * height + cj;
-                            byte val = 0;
+                            double val = 0;
                             if (ci >= width)
                             {
                                 if (cj < height)
                                 {
-                                    val = temp.A[ci - i - 1][cj - j];
+                                    val = blocks[curPos].A[ci - i - 1][cj - j];
                                 }
                                 else
                                 {
-                                    val = temp.A[ci - i][cj - j - 1];
+                                    val = blocks[curPos].A[ci - i][cj - j - 1];
                                 }
                             }
                             else
                             {
                                 if (cj >= height)
                                 {
-                                    val = temp.A[ci - i][cj - j - 1];
+                                    val = blocks[curPos].A[ci - i][cj - j - 1];
                                 }
                                 else
                                 {
                                     val = channelData[cpos];
                                 }
                             }
-                            temp.A[ci - i][cj - j] = val;
+                            blocks[curPos].A[ci - i][cj - j] = val;
                         }
                     }
-                    blocks[curPos++] = temp;
+                    curPos++;
                 }
             }
             return blocks;
@@ -473,9 +493,9 @@ namespace Jpeg
                 (v[2] - v[5]) * C[3, 2] + (v[3] - v[4]) * C[3, 3];
             double val4 = (v[0] - v[1] - v[2] + v[3] + v[4] - v[5] - v[6] + v[7]) *
                 C[4, 0];
-            double val5 = (v[0] - v[7]) * C[5, 0] + (v[1] - v[6]) * C[5, 1] + 
+            double val5 = (v[0] - v[7]) * C[5, 0] + (v[1] - v[6]) * C[5, 1] +
                 (v[2] - v[5]) * C[5, 2] + (v[3] - v[4]) * C[5, 3];
-            double val6 = (v[0] + v[7] - v[3] - v[4]) * C[6, 0] + 
+            double val6 = (v[0] + v[7] - v[3] - v[4]) * C[6, 0] +
                 (v[1] + v[6] - v[2] - v[5]) * C[6, 1];
             double val7 = (v[0] - v[7]) * C[7, 0] + (v[1] - v[6]) * C[7, 1] +
                 (v[2] - v[5]) * C[7, 2] + (v[3] - v[4]) * C[7, 3];
@@ -592,54 +612,6 @@ namespace Jpeg
             }
         }
 
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="bl"></param>
-        /// <param name="Q"></param>
-        /// <param name="phi"></param>
-        private static void Quantize(ref double[][] bl, int[,] Q, int phi)
-        {
-            int S = 200 - 2 * phi;
-            if (phi < 50)
-            {
-                S = 5000 / phi;
-            }
-            for (int i = 0; i < 8; ++i)
-            {
-                for (int j = 0; j < 8; ++j)
-                {
-                    bl[i][j] /= Math.Ceiling(((Q[i, j] * S + 50) / 100.0));                
-                }
-            }
-        }
-
-        private static void QuantizeI(ref Block orig, ref double[][] bl, int[,] Q, int phi)
-        {
-            int S = 200 - 2 * phi;
-            if (phi < 50)
-            {
-                S = 5000 / phi;
-            }
-            for (int i = 0; i < 8; ++i)
-            {
-                for (int j = 0; j < 8; ++j)
-                {
-                    int val = orig.A[i][j];
-                    if (val > 127 && i + j != 0)
-                    {
-                        val = val - 256;
-                    }
-                    bl[i][j] = val * Math.Ceiling(((Q[i, j] * S + 50) / 100.0));
-                    //if (bl[i][j] < 0)
-                    //{
-                        //bl[i][j] = 0;
-                    //}
-                }
-            }
-        }
-
         /// <summary>
         /// Does the DCT and quantization on a Block
         /// </summary>
@@ -651,21 +623,21 @@ namespace Jpeg
             for (int i = 0; i < 8; ++i)
             {
                 tempBlock[i] = new double[8];
-                DCT1D(in bl.A[i], ref tempBlock[i]);
+                DoublesDCT1D(ref bl.A[i]);
             }
-            transpose(ref tempBlock);
+            transpose(ref bl.A);
             for (int i = 0; i < 8; ++i)
             {
-                DoublesDCT1D(ref tempBlock[i]);
+                DoublesDCT1D(ref bl.A[i]);
             }
-            transpose(ref tempBlock);
+            transpose(ref bl.A);
             switch (type)
             {
                 case true:
-                    Quantize(ref tempBlock, LQM, 90);
+                    Quantize(ref bl, LQM, 90);
                     break;
                 case false:
-                    Quantize(ref tempBlock, CQM, 90);
+                    Quantize(ref bl, CQM, 90);
                     break;
             }
             //write8x8Darr(tempBlock, "DCTResult2.txt");
@@ -676,8 +648,8 @@ namespace Jpeg
                     bl.A[i][j] = (byte)(char)(int)tempBlock[i][j];
                     //if (bl.A[i][j] > 250 && i + j > 0)
                     //{
-                        //bl.A[i][j] = 0;
-                        //System.Windows.Forms.MessageBox.Show(tempBlock[i][j].ToString());
+                    //bl.A[i][j] = 0;
+                    //System.Windows.Forms.MessageBox.Show(tempBlock[i][j].ToString());
                     //}
                     /*if (bl.A[i][j] >= 250)
                     {
@@ -702,10 +674,10 @@ namespace Jpeg
             switch (type)
             {
                 case true:
-                    QuantizeI(ref bl, ref iBl, LQM, 90);
+                    QuantizeI(ref bl, LQM, 90);
                     break;
                 case false:
-                    QuantizeI(ref bl, ref iBl, CQM, 90);
+                    QuantizeI(ref bl, CQM, 90);
                     break;
             }
             IDCT(ref iBl[0]);
@@ -752,11 +724,11 @@ namespace Jpeg
             int sizeOf = 0;
             for (int i = 0; i < 64; ++i)
             {
-                if (block.A[_posX[i]][_posY[i]] != 0)
+                if (block.A[_posX[i]][_posY[i]] < -0.1 || block.A[_posX[i]][_posY[i]] > 0.1)
                 {
                     retValue[sizeOf++] = nrApp;
                     nrApp = 0;
-                    retValue[sizeOf++] = block.A[_posX[i]][_posY[i]];
+                    retValue[sizeOf++] = (byte)(char)(int)block.A[_posX[i]][_posY[i]];
                     continue;
                 }
                 nrApp++;
@@ -817,7 +789,7 @@ namespace Jpeg
                 {
                     int curBlock = blocksPerLine * (int)(i / 8) + (int)j / 8;
                     int xPos = i % 8, yPos = j % 8;
-                    imageData[i * height + j] = blockData[curBlock].A[xPos][yPos];
+                    imageData[i * height + j] = (byte)(char)(int)blockData[curBlock].A[xPos][yPos];
                 }
             }
             return imageData;
@@ -963,6 +935,7 @@ namespace Jpeg
         internal static byte[] convertImage(byte[] imageData, int width = 1920, int height = 1080)
         {
             testDCTandIDCT();
+            //return null;
             byte[] YData = new byte[width * height];
             byte[] CbData = new byte[width * height];
             byte[] CrData = new byte[width * height];
@@ -974,7 +947,7 @@ namespace Jpeg
             Buffer.BlockCopy(YCbCrData, YData.Length + CbData.Length, CrData, 0, CrData.Length);
             //11ms in release
             //return null;
-            byte[] NewCrData = new byte[width /4  * height / 4];
+            byte[] NewCrData = new byte[width / 4 * height / 4];
             Thread NewCr = new Thread(
                 () => NewCrData = subsampling(CrData));
             NewCr.Start();
@@ -984,31 +957,44 @@ namespace Jpeg
             //writeByteArr("CbSubsamplingData.txt", NewCbData);
             //writeByteArr("CrSubsamplingData.txt", NewCrData);
             //writeByteArr("Ydata.txt", YData);
-            Block[] YBlocks = new Block[(width / 8) * (height / 8)];
+            int sz = (width / 8) * (height / 8);
+            Block[] YBlocks = new Block[sz];
             Thread YBlThread = new Thread(
-                () => splitIntoBlocks(YData, ref YBlocks, 1920, 1080));
+                () =>
+                {
+                    for (int i = 0; i < sz; ++i)
+                    {
+                        YBlocks[i] = new Block(8);
+                    }
+                    splitIntoBlocks(YData, ref YBlocks, 1920, 1080);
+                });
             YBlThread.Start();
             Block[] CbBlocks = new Block[60 * 34];
+            for (int i = 0; i < CbBlocks.Length; ++i)
+            {
+                CbBlocks[i] = new Block(8);
+            }
             splitIntoBlocks(NewCbData, ref CbBlocks);
             Block[] CrBlocks = new Block[60 * 34];
+            for (int i = 0; i < CrBlocks.Length; ++i)
+            {
+                CrBlocks[i] = new Block(8);
+            }
             splitIntoBlocks(NewCrData, ref CrBlocks);
             YBlThread.Join();
-            writeBlock(YBlocks[0], "cbBlOrig.txt");
+            writeBlock(CbBlocks[0], "cbBlOrig.txt");
+            //writeBlock(YBlocks[10], "cbBlOrig1.txt");
             //return null;
             //in debug splitting takes ~30ms
             int lg = YBlocks.Length / 2, Lg = YBlocks.Length;
-            GC.Collect();
             Thread Ythread1 = new Thread(
                 () =>
                 {
                     for (int j = 0; j < lg; ++j)
                     {
-                        //DCTandQuantization(ref YBlocks[i], true);
-                        //YBlocks[j].DCTandQMethod(true);
-                        Block temp = YBlocks[j];
-                        temp.DCTandQMethod(true);
-                        YBlocks[j] = temp;
-                        //apply1DCT(ref YBlocks[i], true);
+                            //Block temp = YBlocks[j];
+                            //temp.DCTandQMethod(true);
+                        YBlocks[j].DCTandQMethod(true);
                     }
                 });
             Ythread1.Start();
@@ -1017,30 +1003,21 @@ namespace Jpeg
                 {
                     for (int k = lg; k < Lg; ++k)
                     {
-                        //DCTandQuantization(ref YBlocks[i], true);
+                            //DCTandQuantization(ref YBlocks[i], true);
                         YBlocks[k].DCTandQMethod(true);
                     }
                 });
             Ythread2.Start();
-            Thread Cthread = new Thread(
-                () =>
+            int Clen = CbBlocks.Length;
+            for (int i = 0; i < Clen; ++i)
             {
-                int Clen = CbBlocks.Length;
-                //for (int i = 0; i < Clen; ++i)
-                //{
-                //if (i == 1)
-                //{
-                        CbBlocks[0].DCTandQMethod(false);
-                        CrBlocks[0].DCTandQMethod(false);
-                    //}
-                    //DCTandQuantization(ref CbBlocks[i], false);
-                    //DCTandQuantization(ref CrBlocks[i], false);
-                //}
-            });
-            Cthread.Start();
-            Ythread2.Join();
+                CbBlocks[i].DCTandQMethod(false);
+                CrBlocks[i].DCTandQMethod(false);
+            }
+            //Ythread2.Join();
             Ythread1.Join();
-            writeBlock(YBlocks[0], "cbBl.txt");
+            //writeBlock(YBlocks[0], "cbBl.txt");
+            writeBlock(CbBlocks[0], "cbBl1.txt");
             //DCT Chen on the Y channel takes ~175ms in debug, however i have the resources to compute it in 2 threads at the same time, hopefully loeffler can save the day
             //return null;
             byte[][] compressedBlocks = new byte[YBlocks.Length + 2 * CbBlocks.Length][];
@@ -1121,15 +1098,25 @@ namespace Jpeg
             Block[] rets = new Block[noBl];
             for (int i = 0; i < noBl; ++i)
             {
-                rets[i].A = new byte[8][];
-                for (int j = 0; j < 8; ++j)
-                {
-                    rets[i].A[j] = new byte[8];
-                }
+                rets[i] = new Block(8);
             }
+            int nr = 0;
             for (int i = 0; i < data.Length; i += 2)
             {
-                nrVals += data[i] + 1;
+                while (data[i] > 0)
+                {
+                    rets[idBl].A[_posX[nr]][_posY[nr]] = 0;
+                    nr++;
+                    data[i]--;
+                }
+                rets[idBl].A[_posX[nr]][_posY[nr]] = data[i + 1];
+                nr++;
+                if (nr == 64)
+                {
+                    idBl++;
+                    nr = 0;
+                }
+                /*nrVals += data[i] + 1;
                 if (nrVals == 64)
                 {
                     int cpos = 0;
@@ -1142,7 +1129,7 @@ namespace Jpeg
                             nr0--;
                             cpos++;
                         }
-                        if (cpos != 64)
+                        if (cpos < 64)
                         {
                             rets[idBl].A[_posX[cpos]][_posY[cpos]] = data[j + 1];
                             cpos++;
@@ -1151,7 +1138,7 @@ namespace Jpeg
                     nrVals = 0;
                     prevPos = i;
                     idBl++;
-                }
+                }*/
             }
             return rets;
         }
@@ -1181,37 +1168,39 @@ namespace Jpeg
                 }
             }
             Block[] encodedBlocks = getBlocks(compData, noBl);
-            writeBlock(encodedBlocks[0], "f15.txt");
+            //writeBlock(encodedBlocks[0], "f15.txt");
             int nrYbl = ((width + 7) / 8) * ((height + 7) / 8);
-            //writeBlock(encodedBlocks[nrYbl + 100], "f15.txt");
-            //System.Windows.Forms.MessageBox.Show(noBl.ToString() + " <> " + nrYbl.ToString());
             int cBl = (encodedBlocks.Length - nrYbl) / 2;
+            //writeBlock(encodedBlocks[0], "e0.txt");
+            writeBlock(encodedBlocks[nrYbl], "e1.txt");
             Thread Ythr1 = new Thread(
                 () =>
                 {
                     for (int i = 0; i < nrYbl / 2; ++i)
                     {
-                        //IQuantizationAndIDCT(ref encodedBlocks[i], true);
+                            //IQuantizationAndIDCT(ref encodedBlocks[i], true);
                         encodedBlocks[i].IQuantizationAndIDCTMethod(true);
                     }
                 });
             Thread Ythr2 = new Thread(
                 () =>
                 {
-                    for (int i = nrYbl / 2; i < nrYbl; ++i)
+                    for (int j = nrYbl / 2; j < nrYbl; ++j)
                     {
-                        //IQuantizationAndIDCT(ref encodedBlocks[i], true);
-                        encodedBlocks[i].IQuantizationAndIDCTMethod(true);
+                            //IQuantizationAndIDCT(ref encodedBlocks[i], true);
+                        encodedBlocks[j].IQuantizationAndIDCTMethod(true);
                     }
                 });
             Ythr1.Start();
             Ythr2.Start();
-            for (int i = nrYbl; i < encodedBlocks.Length; ++i)
+            for (int k = nrYbl; k < encodedBlocks.Length; ++k)
             {
-                IQuantizationAndIDCT(ref encodedBlocks[i], false);
+                //IQuantizationAndIDCT(ref encodedBlocks[i], false);
+                encodedBlocks[k].IQuantizationAndIDCTMethod(false);
             }
             Ythr2.Join();
-            writeBlock(encodedBlocks[0], "first.txt");
+            writeBlock(encodedBlocks[nrYbl], "first.txt");
+            //writeBlock(encodedBlocks[nrYbl], "first.txt");
             int e1 = encodedBlocks.Length / 3, e2 = e1 * 2, horizontaOffset = width;
             byte[] Ydata = new byte[width * height];
             byte[] Ydata2 = new byte[(width * height) / 2];
@@ -1228,46 +1217,46 @@ namespace Jpeg
                         for (int j = 0; j < 8; ++j)
                         {
                             if (_cpos0 % width == 0 && _suntProst == false)
-                            //this means that I completed the whole width of the image, the next blocks go 8 pixels down 
-                            //it shouldn't happen on the Y channel but I'd like to err on the side of caution
+                                //this means that I completed the whole width of the image, the next blocks go 8 pixels down 
+                                //it shouldn't happen on the Y channel but I'd like to err on the side of caution
                             {
                                 break;
                             }
-                            Ydata1[_cpos0] = encodedBlocks[i].A[0][j];
+                            Ydata1[_cpos0] = (byte)(char)(int)encodedBlocks[i].A[0][j];
                             ++_cpos0;
                             if (_cpos1 < Ydata2.Length)
                             {
-                                Ydata2[_cpos1] = encodedBlocks[i].A[1][j];
+                                Ydata2[_cpos1] = (byte)(char)(int)encodedBlocks[i].A[1][j];
                             }
                             ++_cpos1;
                             if (_cpos2 < Ydata2.Length)
                             {
-                                Ydata2[_cpos2] = encodedBlocks[i].A[2][j];
+                                Ydata2[_cpos2] = (byte)(char)(int)encodedBlocks[i].A[2][j];
                             }
                             ++_cpos2;
                             if (_cpos3 < Ydata2.Length)
                             {
-                                Ydata2[_cpos3] = encodedBlocks[i].A[3][j];
+                                Ydata2[_cpos3] = (byte)(char)(int)encodedBlocks[i].A[3][j];
                             }
                             ++_cpos3;
                             if (_cpos4 < Ydata2.Length)
                             {
-                                Ydata2[_cpos4] = encodedBlocks[i].A[4][j];
+                                Ydata2[_cpos4] = (byte)(char)(int)encodedBlocks[i].A[4][j];
                             }
                             ++_cpos4;
                             if (_cpos5 < Ydata2.Length)
                             {
-                                Ydata2[_cpos5] = encodedBlocks[i].A[5][j];
+                                Ydata2[_cpos5] = (byte)(char)(int)encodedBlocks[i].A[5][j];
                             }
                             ++_cpos5;
                             if (_cpos6 < Ydata2.Length)
                             {
-                                Ydata2[_cpos6] = encodedBlocks[i].A[6][j];
+                                Ydata2[_cpos6] = (byte)(char)(int)encodedBlocks[i].A[6][j];
                             }
                             ++_cpos6;
                             if (_cpos7 < Ydata2.Length)
                             {
-                                Ydata2[_cpos7] = encodedBlocks[i].A[7][j];
+                                Ydata2[_cpos7] = (byte)(char)(int)encodedBlocks[i].A[7][j];
                             }
                             ++_cpos7;
                         }
@@ -1309,46 +1298,46 @@ namespace Jpeg
                         for (int j = 0; j < 8; ++j)
                         {
                             if (_cpos0 % width == 0 && _suntProst == false)
-                            //this means that I completed the whole width of the image, the next blocks go 8 pixels down 
-                            //it shouldn't happen on the Y channel but I'd like to err on the side of caution
+                                //this means that I completed the whole width of the image, the next blocks go 8 pixels down 
+                                //it shouldn't happen on the Y channel but I'd like to err on the side of caution
                             {
                                 break;
                             }
-                            Ydata2[_cpos0] = encodedBlocks[i].A[0][j];
+                            Ydata2[_cpos0] = (byte)(char)(int)encodedBlocks[i].A[0][j];
                             ++_cpos0;
                             if (_cpos1 < Ydata2.Length)
                             {
-                                Ydata2[_cpos1] = encodedBlocks[i].A[1][j];
+                                Ydata2[_cpos1] = (byte)(char)(int)encodedBlocks[i].A[1][j];
                             }
                             ++_cpos1;
                             if (_cpos2 < Ydata2.Length)
                             {
-                                Ydata2[_cpos2] = encodedBlocks[i].A[2][j];
+                                Ydata2[_cpos2] = (byte)(char)(int)encodedBlocks[i].A[2][j];
                             }
                             ++_cpos2;
                             if (_cpos3 < Ydata2.Length)
                             {
-                                Ydata2[_cpos3] = encodedBlocks[i].A[3][j];
+                                Ydata2[_cpos3] = (byte)(char)(int)encodedBlocks[i].A[3][j];
                             }
                             ++_cpos3;
                             if (_cpos4 < Ydata2.Length)
                             {
-                                Ydata2[_cpos4] = encodedBlocks[i].A[4][j];
+                                Ydata2[_cpos4] = (byte)(char)(int)encodedBlocks[i].A[4][j];
                             }
                             ++_cpos4;
                             if (_cpos5 < Ydata2.Length)
                             {
-                                Ydata2[_cpos5] = encodedBlocks[i].A[5][j];
+                                Ydata2[_cpos5] = (byte)(char)(int)encodedBlocks[i].A[5][j];
                             }
                             ++_cpos5;
                             if (_cpos6 < Ydata2.Length)
                             {
-                                Ydata2[_cpos6] = encodedBlocks[i].A[6][j];
+                                Ydata2[_cpos6] = (byte)(char)(int)encodedBlocks[i].A[6][j];
                             }
                             ++_cpos6;
                             if (_cpos7 < Ydata2.Length)
                             {
-                                Ydata2[_cpos7] = encodedBlocks[i].A[7][j];
+                                Ydata2[_cpos7] = (byte)(char)(int)encodedBlocks[i].A[7][j];
                             }
                             ++_cpos7;
                         }
@@ -1385,49 +1374,49 @@ namespace Jpeg
                     {
                         break;
                     }
-                    Crdata[cpos0] = encodedBlocks[i + nrYbl].A[0][j];
-                    Cbdata[cpos0] = encodedBlocks[i + nrYbl + diff].A[0][j];
+                    Crdata[cpos0] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[0][j];
+                    Cbdata[cpos0] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[0][j];
                     ++cpos0;
                     if (cpos1 < Crdata.Length)
                     {
-                        Crdata[cpos1] = encodedBlocks[i + nrYbl].A[1][j];
-                        Cbdata[cpos1] = encodedBlocks[i + nrYbl + diff].A[1][j];
+                        Crdata[cpos1] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[1][j];
+                        Cbdata[cpos1] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[1][j];
                     }
                     ++cpos1;
                     if (cpos2 < Crdata.Length)
                     {
-                        Crdata[cpos2] = encodedBlocks[i + nrYbl].A[2][j];
-                        Cbdata[cpos2] = encodedBlocks[i + nrYbl + diff].A[2][j];
+                        Crdata[cpos2] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[2][j];
+                        Cbdata[cpos2] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[2][j];
                     }
                     ++cpos2;
                     if (cpos3 < Crdata.Length)
                     {
-                        Crdata[cpos3] = encodedBlocks[i + nrYbl].A[3][j];
-                        Cbdata[cpos3] = encodedBlocks[i + nrYbl + diff].A[3][j];
+                        Crdata[cpos3] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[3][j];
+                        Cbdata[cpos3] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[3][j];
                     }
                     ++cpos3;
                     if (cpos4 < Crdata.Length)
                     {
-                        Crdata[cpos4] = encodedBlocks[i + nrYbl].A[4][j];
-                        Cbdata[cpos4] = encodedBlocks[i + nrYbl + diff].A[4][j];
+                        Crdata[cpos4] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[4][j];
+                        Cbdata[cpos4] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[4][j];
                     }
                     ++cpos4;
                     if (cpos5 < Crdata.Length)
                     {
-                        Crdata[cpos5] = encodedBlocks[i + nrYbl].A[5][j];
-                        Cbdata[cpos5] = encodedBlocks[i + nrYbl + diff].A[5][j];
+                        Crdata[cpos5] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[5][j];
+                        Cbdata[cpos5] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[5][j];
                     }
                     ++cpos5;
                     if (cpos6 < Crdata.Length)
                     {
-                        Crdata[cpos6] = encodedBlocks[i + nrYbl].A[6][j];
-                        Cbdata[cpos6] = encodedBlocks[i + nrYbl + diff].A[6][j];
+                        Crdata[cpos6] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[6][j];
+                        Cbdata[cpos6] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[6][j];
                     }
                     ++cpos6;
                     if (cpos7 < Crdata.Length)
                     {
-                        Crdata[cpos7] = encodedBlocks[i + nrYbl].A[7][j];
-                        Cbdata[cpos7] = encodedBlocks[i + nrYbl + diff].A[7][j];
+                        Crdata[cpos7] = (byte)(char)(int)encodedBlocks[i + nrYbl].A[7][j];
+                        Cbdata[cpos7] = (byte)(char)(int)encodedBlocks[i + nrYbl + diff].A[7][j];
                     }
                     ++cpos7;
                 }
@@ -1459,23 +1448,18 @@ namespace Jpeg
                 ++offset2;
             }
             Buffer.BlockCopy(Ydata2, 0, Ydata, offset1, Ydata2.Length);//All of the Y channel data is where it needs to be, finnaly
-            byte[] CbBigData = new byte[0];
-            byte[] CrBigData = new byte[0];
+            byte[] CbBigData = new byte[Cbdata.Length * 16];
+            byte[] CrBigData = new byte[Crdata.Length * 16];
             Thread extraCr = new Thread(
                 () =>
                 {
                     CrBigData = extrapolate(Crdata);
-                    //convertToRGBInPlace(ref CrBigData);
+                        //convertToRGBInPlace(ref CrBigData);
                 });
             extraCr.Start();
             CbBigData = extrapolate(Cbdata);
             //convertToRGBInPlace(ref CbBigData);
             extraCr.Join();
-            //System.Windows.Forms.MessageBox.Show(Ydata.Length.ToString());
-            writeByteArr("YBytes.txt", Ydata);
-            //writeByteArr("CbBytes.txt", CbBigData);
-            //writeByteArr("CbsBytes.txt", Cbdata);
-            //writeByteArr("CrBytes.txt", Crdata);
             //Buffer.BlockCopy(Ydata, 0, imageData, 0, Ydata.Length);
             //Buffer.BlockCopy(CbBigData, 0, imageData, Ydata.Length, CbBigData.Length);
             //Buffer.BlockCopy(CrBigData, 0, imageData, Ydata.Length + CbBigData.Length, CrBigData.Length);
@@ -1595,7 +1579,7 @@ namespace Jpeg
                 {
                     for (int j = 0; j < 8; ++j)
                     {
-                        sw.Write(Math.Round(arr[i][j],2));
+                        sw.Write(Math.Round(arr[i][j], 2));
                         sw.Write(" ");
                     }
                     sw.Write("\n");
@@ -1617,15 +1601,23 @@ namespace Jpeg
                         testB[0].A[i][j] = (byte)(char)rand.Next(0, 255);
                         continue;
                     }
-                    testB[0].A[i][j] = 30;
+                    testB[0].A[i][j] = (byte)(char)(rand.Next(7, 10) * 10);
                 }
             }
             writeBlock(testB[0], "f1.txt");
-            testB[0].DCTandQMethod(true);
+            testB[0].DCTandQMethod(false);
             //DCTandQuantization(ref testB, true);
             writeBlock(testB[0], "f2.txt");
+            for (int i = 0; i < 8; ++i)
+            {
+                for (int j = 0; j < 8; ++j)
+                {
+                    testB[0].A[i][j] = (byte)(char)(int)Math.Round(testB[0].A[i][j]);
+                }
+            }
+            writeBlock(testB[0], "f25.txt");
             //IQuantizationAndIDCT(ref testB, true);
-            testB[0].IQuantizationAndIDCTMethod(true);
+            testB[0].IQuantizationAndIDCTMethod(false);
             writeBlock(testB[0], "f3.txt");
         }
     }
