@@ -1,4 +1,4 @@
-﻿using Jpeg;
+using Jpeg;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -23,10 +23,17 @@ namespace ServerApp
         private KeyBoardHook keyboardhook;
         private static Thread inpThr = new Thread(new ThreadStart(receiveInputs));
         private static IPEndPoint clientEndPoint = new IPEndPoint(IPAddress.Any, 1);
-        private static UdpClient clientSocket = new UdpClient(5902);
+        private static System.Timers.Timer ScreenCapT;
+        private static UdpClient clientSocket = new UdpClient(5901);
+        private static string clientIp = "192.168.1.0";
+        //private static IPEndPoint localhost = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 5903);//when testing this should be 5902
+        //private static UdpClient localclient = new UdpClient(localhost);
         public Form1()
         {
             InitializeComponent();
+            this.FormClosed += new FormClosedEventHandler(Form1_FormClosed);
+            inpThr.IsBackground = true;
+            inpThr.Start();
             //this.keyboardhook = new KeyBoardHook(true);
             //keyboardhook.HookAllKeys = true;
             //this.keyboardhook.KeyDown += new KeyEventHandler(keyboardhook_KeyDown);
@@ -40,10 +47,33 @@ namespace ServerApp
                     ip = sr.ReadToEnd();
                     sr.Close();
                     textBoxIp.Text = ip;
+                    try
+                    {
+                        IPAddress clientIp = IPAddress.Parse(ip);
+                        clientEndPoint = new IPEndPoint(clientIp, 5902);
+                    }
+                    catch (Exception ex)
+                    {
+                        //anyone can mess with the ip.txt file
+                        clientEndPoint = new IPEndPoint(IPAddress.Parse("192.168.1.0"), 5902);
+                    }
                 }
             }
+            else
+            {
+                File.Create("ip.txt");
+            }
+            clientSocket.Connect(new IPEndPoint(IPAddress.Parse(clientIp), 5901) );
+            //localTest(); //This works fine
             StartScreenCapture();
-            //clientEndPoint = new IPEndPoint(IPAddress.Parse(ip), 5902);
+            //simulateKeybd.sendKey(Keys.RWin);
+            //simulateKeybd.sendKey(Keys.D);
+        }
+        void Form1_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            ScreenCapT.Stop();
+            //inpThr.Suspend();
+
         }
         private static void restartThread(int tId)
         {
@@ -57,28 +87,73 @@ namespace ServerApp
         }
         private static void receiveInputs()
         {
-            IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, 5902);
-            UdpClient receiveClient = new UdpClient(5902);
+            IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, listenPort);
+            UdpClient receiveClient = new UdpClient(endPoint);
+            //receiveClient.Connect(endPoint);
+            //localclient.Connect(localhost);
             try
             {
                 while (true)
                 {
-                    Byte[] recData = receiveClient.Receive(ref endPoint);
-                    if (recData[0] == RTP.RTP.keyboardInputDown)
+                    byte[] recData = receiveClient.Receive(ref endPoint);
+                    //byte[] recData = localclient.Receive(ref endPoint);
+                    for (int i = 0; i < recData.Length; ++i)
                     {
-                        SendInputClass.sendKbIn((Keys)recData[1], true);
-                        SendInputClass.sendKbIn((Keys)recData[1], false);
-                    }
-                    if (recData[0] == RTP.RTP.keyboardInputUp)
-                    {
-                        SendInputClass.sendKbIn((Keys)recData[1], false);
+
                     }
                 }
             }
             catch (SocketException ex)
             {
                 //i just recall the function
+                //I will do something smarter soon
                 restartThread(1);
+            }
+        }
+
+        private void evalInput(byte[] data)
+        {
+            switch (data[0])
+            {
+                case RTP.RTP.keyboardInputDown:
+                    simulateKeybd.sendKeyDown(data[1]);
+                    break;
+                case RTP.RTP.keyboardInputUp:
+                    simulateKeybd.sendKeyUp(data[1]);
+                    break;
+                default:
+                    if (RTP.RTP.mouseMove < data[0] && data[0] <= RTP.RTP.mouseMiddleClickUp)
+                    {
+                        simulateMouse.MouseEventNoMove(data[0]);
+                    }
+                    else
+                    {
+                        byte[] nr = new byte[2];
+                        switch (data[0])
+                        {
+                            case RTP.RTP.mouseMove:
+                                ushort posX, posY;
+                                nr[0] = data[1];
+                                nr[1] = data[2];
+                                posX = BitConverter.ToUInt16(nr);
+                                nr[0] = data[3];
+                                nr[1] = data[4];
+                                posY = BitConverter.ToUInt16(nr);
+                                simulateMouse.MouseEventMove((int)posX, (int)posY);
+                                break;
+                            case RTP.RTP.mouseMWheel:
+                                short dwData, dwFlags;
+                                nr[0] = data[1];
+                                nr[1] = data[2];
+                                dwFlags = BitConverter.ToInt16(nr);
+                                nr[0] = data[3];
+                                nr[1] = data[4];
+                                dwData = BitConverter.ToInt16(nr);
+                                simulateMouse.MouseEventMWheel(dwFlags, dwData);
+                                break;
+                        }
+                    }
+                    break;
             }
         }
         private void ServerLoad(object sender, EventArgs e)
@@ -108,6 +183,22 @@ namespace ServerApp
                 MessageBox.Show("Load Error: " + ex.Message, "UDP Server", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+        private void localTest()
+        {
+            //all is fine
+            /*Thread.Sleep(2000);
+            byte[] packetClick = RTP.RTP.createMouseInputNoMove(RTP.RTP.mouseLeftClickDown | RTP.RTP.mouseLeftClickUp);
+            localclient.Send(packetClick);
+            Thread.Sleep(1500);
+            byte[] packetRClick = RTP.RTP.createMouseInputNoMove(RTP.RTP.mouseRightClickDown | RTP.RTP.mouseRightClickUp);
+            localclient.Send(packetRClick);
+            Thread.Sleep(1500);
+            byte[] packetMWheel = RTP.RTP.createMouseInputMWheel(RTP.RTP.mouseMWheelMove, 10);
+            localclient.Send(packetMWheel);
+            Thread.Sleep(1500);
+            byte[] packetMove = RTP.RTP.createMouseInputMove(100, 555);
+            localclient.Send(packetMove);*/
+        }
         private void InitializeTimer()
         {
             // Call this procedure when the application starts.  
@@ -127,7 +218,7 @@ namespace ServerApp
         {
             if (ScreenCaptureOn == false)
             {
-                System.Timers.Timer ScreenCapT = new System.Timers.Timer(3333);
+                ScreenCapT = new System.Timers.Timer(3333);
                 ScreenCapT.Elapsed += SendScreen;
                 ScreenCapT.AutoReset = true;
                 ScreenCapT.Enabled = true;
@@ -136,35 +227,43 @@ namespace ServerApp
         }
         private void SendScreen(Object source, System.Timers.ElapsedEventArgs e)
         {
+            //simulateKeybd.sendKey(Keys.W);
+            //simulateMouse.SimulateLeftClick();
+            //System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();wwwwwwwwwwwwwwwwww
             Bitmap screenBmp = screenCapture.captureScreenWithCursor();
-            System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
-            byte[] test = jpegCompression.convertImage(jpegCompression.convertBmpToByteArr(screenBmp));
-            //byte[] test2 = jpegCompression.convertImage(jpegCompression.convertBmpToByteArr(screenBmp));
-            watch.Stop();
-            //appendToFile(test);
-            MessageBox.Show(watch.ElapsedMilliseconds.ToString());
-            //MessageBox.Show(test.Length.ToString());
+            //watch.Stop();
+            //MessageBox.Show(watch.ElapsedMilliseconds.ToString());
+            //screenBmp.Save("a.bmp");
+            byte[] data = jpegCompression.convertBmpToByteArr(screenBmp);
+            byte[] img = jpegCompression.notJpegEncoding(data);
             screenBmp.Dispose();
             GC.Collect();
-            //if (JPEGImg != null)
-            //{
-                //MessageBox.Show(JPEGImg.Length.ToString());
-            //}
-            //byte[][] imgData = RTP.RTP.convertLongDataToRTPPackets(JPEGImg, 0x02);
-            /*for (int i = 0; i < imgData.Length; ++i)
+            img = null;
+            if (img != null)
             {
-                //sendPacket(imgData[i]);
-            }*/
+                byte[][] imgData = RTP.RTP.convertLongDataToRTPPackets(img, RTP.RTP.imageByte);
+                int lg = imgData.Length;
+                for (int i = 0; i < lg; ++i)
+                {
+                    bool a = sendPacket(imgData[i]);
+                    if (a == false)
+                    {
+                        MessageBox.Show("ceva nu e ok");
+                    }
+                }
+            }
         }
         private bool sendPacket(byte[] data)
         {
             try
             {
-                clientSocket.Send(data, data.Length, clientEndPoint);
+                clientSocket.Send(data, data.Length);
                 return true;
             }
             catch (SocketException ex)
             {
+                MessageBox.Show(ex.Message);
+                //I will handle the exception in a different way, obviously
                 return false;
             }
         }
@@ -398,12 +497,8 @@ namespace ServerApp
                 Graphics captureGraphics = Graphics.FromImage(captureBitmap);
                 //copying image from the screen
                 captureGraphics.CopyFromScreen(captureRectangle.Left, captureRectangle.Top, 0, 0, captureRectangle.Size);
-                writeToTxt(captureBitmap);
-                //MessageBox.Show(cnt.ToString());
                 captureGraphics.Dispose();
-                //File.Delete(@"C:\temp.jpg");
-                //captureBitmap.Save(@"C:\ScreenCapture\temp.jpg", System.Drawing.Imaging.ImageFormat.Jpeg);
-                GC.Collect();
+                //GC.Collect();
                 return captureBitmap;
             }
 
@@ -448,6 +543,41 @@ namespace ServerApp
             }
             return null;
 
+        }
+
+        public static Bitmap captureScreenWithCursorFast(int width = 1920, int height = 1080)
+        {
+            Bitmap captureBitmap = new Bitmap(width, height, PixelFormat.Format24bppRgb);
+            Rectangle captureRectangle = new Rectangle(0, 0, width, height);
+            Graphics captureGraphics = Graphics.FromImage(captureBitmap);
+            //copying image from the screen
+            captureGraphics.CopyFromScreen(captureRectangle.Left, captureRectangle.Top, 0, 0, captureRectangle.Size);
+            captureGraphics.Dispose();
+            int x, y;
+            Bitmap cursorBmp;
+            IntPtr hicon;
+            CURSORINFO ci = new CURSORINFO();
+            ICONINFO icInfo;
+            ci.cbSize = Marshal.SizeOf(ci);
+            if (GetCursorInfo(ref ci))
+            {
+                if (ci.flags == CURSOR_SHOWING)
+                {
+                    hicon = CopyIcon(ci.hCursor);
+                    x = ci.ptScreenPos.x;
+                    y = ci.ptScreenPos.y;
+                    Icon ic = Icon.FromHandle(hicon);
+                    cursorBmp = ic.ToBitmap();
+                    Rectangle cursorRectangle = new Rectangle(x, y,
+                       cursorBmp.Width, cursorBmp.Height);
+                    Graphics finalGraphics = Graphics.FromImage(captureBitmap);
+                    finalGraphics.DrawImage(cursorBmp, cursorRectangle);
+                    finalGraphics.Flush();
+                    Bitmap desktopBmpNew = new Bitmap(1920, 1080);
+                    Graphics.FromImage(captureBitmap).DrawImage(desktopBmpNew, 0, 0, 1920, 1080);
+                }
+            }
+            return captureBitmap;
         }
     }
     internal class KeyBoardHook : IDisposable
@@ -716,7 +846,7 @@ namespace ServerApp
     {
         /// <summary>
         /// Simulates the functionalities of a mouse
-        /// It uses C++ User32 functions to achieve such greats feats of technology
+        /// It uses C++ User32 functions to achieve such great feats of technology
         /// </summary>
         [Flags]
         public enum MouseEventFlags
@@ -726,7 +856,7 @@ namespace ServerApp
             MiddleDown = 0x00000020,
             MiddleUp = 0x00000040,
             Move = 0x00000001,
-            Absolute = 0x00008000,
+            Absolute = 0x00008000, //Because of the way i planned the client I don't think there is a need for absolute
             RightDown = 0x00000008,
             RightUp = 0x00000010
         }
@@ -778,7 +908,16 @@ namespace ServerApp
             byte[] yPos = new byte[2];
             SetCursorPos(BitConverter.ToUInt16(xPos), BitConverter.ToUInt16(yPos));
         }
-        public static void MouseEvent(MouseEventFlags value)
+        public static void MouseEventMWheel(int dwFlags, int dwData)
+        {
+            MousePoint position = GetCursorPosition();
+            mouse_event(dwFlags, position.X, position.Y, dwData, 0);
+        }
+        public static void MouseEventMove(int posX, int posY)
+        {
+            mouse_event((int)MouseEventFlags.Move, posX, posY, 0, 0);
+        }
+        public static void MouseEventNoMove(byte value)
         {
             MousePoint position = GetCursorPosition();
 
@@ -847,62 +986,118 @@ namespace ServerApp
         }
 
     }
+    internal class simulateKeybd
+    {
+        [Flags]
+        public enum KeyEventFlags
+        {
+            KeyDown = 0x0000,
+            ExtendedKey = 0x0001,
+            KeyUp = 0x0002,
+            Unicode = 0x0004,
+        }
+
+        [DllImport("User32.dll")]
+        private static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);
+
+        public static void sendKey(Keys key)
+        {
+            keybd_event((byte)key, 0, (int)KeyEventFlags.KeyDown, 0);//to be changed to sth correct
+            keybd_event((byte)key, 0, (int)KeyEventFlags.KeyUp, 0);//to be changed to sth correct
+        }
+
+        public static void sendKeyDown(byte key)
+        {
+            keybd_event((byte)key, 0, (int)KeyEventFlags.KeyDown, 0);
+        }
+        
+        public static void sendKeyUp(byte key)
+        {
+            keybd_event(key, 0, (int)KeyEventFlags.KeyUp, 0);
+        }
+    }
     internal class SendInputClass
     {
         [Flags]
-        public enum MouseEventFlags
+        public enum KeyEventFlags
         {
-            LeftDown = 0x00000002,
-            LeftUp = 0x00000004,
-            MiddleDown = 0x00000020,
-            MiddleUp = 0x00000040,
-            Move = 0x00000001,
-            Absolute = 0x00008000,
-            RightDown = 0x00000008,
-            RightUp = 0x00000010
+            KeyDown = 0x0000,
+            ExtendedKey = 0x0001,
+            KeyUp = 0x0002,
+            Unicode = 0x0004,
+            Scancode = 0x0008
         }
 
-        private struct MOUSEINPUT
+        [Flags]
+        private enum inputType
         {
-            public int dx;
-            public int dy;
-            public int mouseData;
-            public int dwFlags;
-            public int time;
-            public ulong dwExtraInfo;
+            INPUT_MOUSE = 0,
+            INPUT_KEYBOARD = 1,
+            INPUT_HARDWARE = 2
+        }
+
+        [Flags]
+        private enum MouseEventFlags
+        {
+            MOUSEEVENTF_MOVE = 0x0001,
+            MOUSEEVENTF_LEFTDOWN = 0x0002,
+            MOUSEEVENTF_LEFTUP = 0x0004,
+            MOUSEEVENTF_RIGHTDOWN = 0x0008,
+            MOUSEEVENTF_RIGHTUP = 0x0010,
+            MOUSEEVENTF_MIDDLEDOWN = 0x0020,
+            MOUSEEVENTF_MIDDLEUP = 0x0040,
+            MOUSEEVENTF_XDOWN = 0x0080,
+            MOUSEEVENTF_XUP = 0x0100,
+            MOUSEEVENTF_WHEEL = 0x0800,
+            MOUSEEVENTF_VIRTUALDESK = 0x4000,
+            MOUSEEVENTF_ABSOLUTE = 0x8000
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct KEYBDINPUT
+        public struct MOUSEINPUT
         {
-            public short wVk;
-            public short wScan;
-            public int dwFlags;
-            public int time;
-            public ulong dwExtraInfo;
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
         }
 
-        private struct HARDWAREINPUT
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        public struct HARDWAREINPUT
         {
             private int uMsg;
             private byte wParamL;
             private byte wParamH;
         }
+
         [StructLayout(LayoutKind.Explicit)]
-        private struct INPUT
+        public struct InputUnion
         {
-            [FieldOffset(0)]
-            public int type;
-            [FieldOffset(4)]
-            public MOUSEINPUT mi;
-            [FieldOffset(4)]
-            public KEYBDINPUT ki;
-            [FieldOffset(4)]
-            public HARDWAREINPUT hi;
+            [FieldOffset(0)] public MOUSEINPUT mi;
+            [FieldOffset(0)] public KEYBDINPUT ki;
+            [FieldOffset(0)] public HARDWAREINPUT hi;
         }
 
-        [DllImport("User32.dll")]
-        private static extern uint SendInput(uint cInputs, INPUT[] pInputs, int cbSize);
+        [StructLayout(LayoutKind.Sequential)]
+        public struct INPUT
+        {
+            public int type;
+            public InputUnion u;
+        }
+
+        [DllImport("User32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, ref INPUT[] pInputs, int cbSize);
         private struct MousePoint
         {
             public int X;
@@ -914,43 +1109,47 @@ namespace ServerApp
                 Y = y;
             }
         }
+
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool GetCursorPos(out MousePoint lpMousePoint);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetMessageExtraInfo();
+
         public static void sendClick()
         {
-            MousePoint CurPos;
-            GetCursorPos(out CurPos);
-            MOUSEINPUT click = new MOUSEINPUT();
-            click.mouseData = 0;
-            click.dx = CurPos.X;
-            click.dy = CurPos.Y;
-            click.dwFlags = (int)MouseEventFlags.LeftDown | (int)MouseEventFlags.LeftUp;
-            click.dwExtraInfo = 0;
-            INPUT[] pInput = new INPUT[1];
-            pInput[0].type = 0;
-            pInput[0].mi = click;
-            SendInput((uint)pInput.Length, pInput, 6 * sizeof(int) + sizeof(uint));
+            MousePoint mp = new MousePoint();
+            GetCursorPos(out mp);
+            INPUT[] mouseInput = new INPUT[1];
+            mouseInput[0].type = (int)inputType.INPUT_MOUSE;
+            MOUSEINPUT click = new MOUSEINPUT
+            {
+                //dx = 100,
+                //dy = 100,
+                dwFlags = (uint)MouseEventFlags.MOUSEEVENTF_LEFTUP
+            };
+            mouseInput[0].u.mi = click;
+            //mouseInput[0].mi.dx = mp.X;
+            //mouseInput[0].mi.dy = mp.Y;
+            var a = SendInput((uint)mouseInput.Length, ref mouseInput, Marshal.SizeOf(typeof(INPUT)));
         }
         public static void sendKbIn(Keys keyCode, bool type)
         {
-            short codeVal = ((short)keyCode);
-            //MessageBox.Show( codeVal.ToString() );
-            KEYBDINPUT KbIn = new KEYBDINPUT();
-            KbIn.wVk = 0;
-            KbIn.wScan = codeVal;
-            KbIn.dwFlags = 0;// x0008;
-            if (type == false)//keyUp
-            {
-                //KbIn.dwFlags = 0x0002;
-            }
-            KbIn.dwExtraInfo = 0;
-            INPUT[] pInput = new INPUT[1];
-            pInput[0].type = 1;
-            pInput[0].ki = KbIn;
-            uint succ = SendInput((uint)pInput.Length, pInput, 2 * sizeof(int) +
-                2 * sizeof(short) + sizeof(byte) + sizeof(ulong));
-            MessageBox.Show(succ.ToString() + type.ToString());
+            INPUT[] kbIn = new INPUT[2];
+            kbIn[0].type = (int)inputType.INPUT_KEYBOARD;
+            kbIn[1].type = (int)inputType.INPUT_KEYBOARD;
+            kbIn[0].u = new InputUnion();
+            kbIn[1].u = new InputUnion();
+            kbIn[0].u.ki.wVk = (ushort)Keys.W;
+            kbIn[1].u.ki.wVk = (ushort)Keys.W;
+            kbIn[1].u.ki.dwFlags = (uint)KeyEventFlags.KeyUp;
+            kbIn[0].u.ki.time = 0;
+            kbIn[1].u.ki.time = 0;
+            kbIn[0].u.ki.dwExtraInfo = IntPtr.Zero;
+            kbIn[1].u.ki.dwExtraInfo = IntPtr.Zero;
+            uint a = SendInput(2, ref kbIn, Marshal.SizeOf(typeof(INPUT)) );
+            MessageBox.Show(a.ToString());
         }
     }
 }
