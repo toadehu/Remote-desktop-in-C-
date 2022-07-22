@@ -409,7 +409,7 @@ namespace Jpeg
             {
                 for (int j = 0; j < Nheight; ++j)
                 {
-                    int pos = i / ratio * height + j / ratio;
+                    int pos = (i / ratio) * height + (j / ratio);
                     retByteArray[i * Nheight + j] = pixelData[pos];
                 }
             }
@@ -814,9 +814,9 @@ namespace Jpeg
                 int G = (int)imageData[i + 1];
                 int B = (int)imageData[i];
                 double Y, Cb, Cr;
-                Y = (0.299 * R) + (0.587 * G) + (0.114 * B);
-                Cb = 128 - (0.168736 * R) - (0.331264 * G) - (0.5 * B);
-                Cr = 128 + (0.5 * R) - (0.418688 * G) - (0.081312 * B);
+                Y = 16 + (65.738 * R + 129.057 * G + 25.068 * B) / 256;
+                Cb = 128 - (37.945 * R + 74.494 * G - 112.439 * B) / 256;
+                Cr = 128 + (112.439 * R - 94.154 * G - 18.285 * B) / 256;
                 /*byte[] conversion = RGBToYCbCr(imageData[i],
                     imageData[i + lengthPerChannel], imageData[i + 2 * lengthPerChannel]);*/
                 int pos = i / 3;
@@ -865,14 +865,11 @@ namespace Jpeg
         {
             int length = imageData.Length;
             //byte[] convertedData = new byte[imageData.Length];
-            byte[] convertedDataY = new byte[1];
-            byte[] convertedDataCb = new byte[1];
-            byte[] convertedDataCr = new byte[1];
             for (int i = 0; i < length; i += 3)
             {
-                int R = (int)(imageData[i] + 1.402 * (imageData[i + 2] - 128));
-                int G = (int)(imageData[i] - 0.344136 * (imageData[i + 1] - 128) - 0.714136 * (imageData[i + 2] - 128));
-                int B = (int)(imageData[i] + 1.772 * (imageData[i + 1] - 128));
+                int R = (int)((imageData[i] * 298.082 + imageData[i + 2] * 408.583) / 256 - 222.921);
+                int G = (int)((imageData[i] * 298.082 - 100.291 * imageData[i + 1] - 208.120 * imageData[i + 2]) / 256 + 135.576);
+                int B = (int)((imageData[i] * 298.082 + 516.412 * imageData[i + 1]) / 256 - 276.836);
                 normalize(ref R);
                 normalize(ref G);
                 normalize(ref B);
@@ -1587,6 +1584,7 @@ namespace Jpeg
                 sw.Close();
             }
         }
+
         private static void testDCTandIDCT()
         {
             Random rand = new Random();
@@ -1619,6 +1617,57 @@ namespace Jpeg
             //IQuantizationAndIDCT(ref testB, true);
             testB[0].IQuantizationAndIDCTMethod(false);
             writeBlock(testB[0], "f3.txt");
+        }
+
+        /// <summary>
+        /// not jpeg for testyng everything else
+        /// </summary>
+        /// <returns></returns>
+        internal static byte[] notJpegEncoding(byte[] imageData, int width = 1920, int height = 1080)
+        {
+            byte[] YData = new byte[width * height];
+            byte[] CbData = new byte[width * height];
+            byte[] CrData = new byte[width * height];
+            int offset = height * width;
+            byte[] YCbCrData = convertToYCbCr(imageData);
+            // 12ms
+            Buffer.BlockCopy(YCbCrData, 0, YData, 0, YData.Length);
+            Buffer.BlockCopy(YCbCrData, YData.Length, CbData, 0, CbData.Length);
+            Buffer.BlockCopy(YCbCrData, YData.Length + CbData.Length, CrData, 0, CrData.Length);
+            //11ms in release
+            byte[] NewCrData = new byte[width / 4 * height / 4];
+            Thread NewCr = new Thread(
+                () => NewCrData = subsampling(CrData));
+            NewCr.Start();
+            byte[] NewCbData = subsampling(CbData);
+            NewCr.Join();
+            byte[] ret = new byte[YData.Length + NewCbData.Length + NewCrData.Length];
+            Buffer.BlockCopy(YData, 0, ret, 0, YData.Length);
+            Buffer.BlockCopy(NewCbData, 0, ret, YData.Length, NewCbData.Length);
+            Buffer.BlockCopy(NewCrData, 0, ret, YData.Length + NewCbData.Length, NewCrData.Length);
+            return ret;
+        }
+
+        internal static byte[] notJpegDecoding(byte[] imageData, int width = 1920, int height = 1080)
+        {
+            byte[] Ydata = new byte[width * height];
+            byte[] CbData = new byte[(width / 4) * (height / 4)];
+            byte[] CrData = new byte[(width / 4) * (height / 4)];
+            Buffer.BlockCopy(imageData, 0, Ydata, 0, Ydata.Length);
+            Buffer.BlockCopy(imageData, Ydata.Length, CbData, 0, CbData.Length);
+            Buffer.BlockCopy(imageData, Ydata.Length + CbData.Length, CrData, 0, CrData.Length);
+            byte[] newCb = extrapolate(CbData);
+            byte[] newCr = extrapolate(CrData);
+            byte[] ret = new byte[3 * width * height];
+            for (int i = 0; i < ret.Length; i+=3)
+            {
+                int pos = i / 3;
+                ret[i] = Ydata[pos];
+                ret[i+1] = newCb[pos];
+                ret[i+2] = newCr[pos];
+            }
+            convertToRGBInPlace(ref ret);
+            return ret;
         }
     }
 }
