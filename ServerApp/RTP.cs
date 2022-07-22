@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Windows.Forms;
 
@@ -7,7 +7,7 @@ namespace RTP
     internal class RTP
     {
         public const byte imageByte = 0x00;
-        public const byte mouseNewPosition = 0x01;
+        public const byte mouseMove = 0x01;
         public const byte mouseNotNewPosition = 0x03;
         public const byte mouseLeftClickDown = 0x02;
         public const byte mouseLeftClickUp = 0x04;
@@ -15,6 +15,9 @@ namespace RTP
         public const byte mouseRightClickUp = 0x10;
         public const byte mouseMiddleClickDown = 0x20;
         public const byte mouseMiddleClickUp = 0x40;
+        public const byte mouseMWheel = 0x41;
+        public const ushort mouseMWheelMove = 0x0800;
+        public const ushort mouseMWheelH = 0x1000;
         public const byte keyboardInputDown = 0xFF;
         public const byte keyboardInputUp = 0xFE;
         public const byte clientIpHeader = 0x11;
@@ -31,35 +34,56 @@ namespace RTP
             }
             return sb.ToString();
         }
-        internal static byte[] createMouseInput(bool type, byte mouseInputByte,
-            int X = -1, int Y = -1,
-            int serverWidth = 2560, int serverHeight = 1440,
-            int clientWidth = 1920, int clientHeight = 1080)
-        ///
-        /// if type = false it is for position, in this case both X and Y are required
-        /// if type = true it is for everything else, X and Y are to be ignored
-        /// serverWidth, serverHeight, clientWidht, clientHeight are the resolutions of the screen of the server and client respectively
-        ///
+        /// <summary>
+        /// Creates a byte array for the given mouse input, this is kind of useless but it's better organised this way
+        /// Naming is hard this is also no mouse wheel movement because that need another value
+        /// 
+        /// </summary>
+        /// <param name="mouseInputByte">The input, it needs to be one of these values: 0x01, 0x02, 0x04, 0x08, 0x10</param>
+        /// <returns></returns>
+        internal static byte[] createMouseInputNoMove(byte mouseInputByte)
         {
-            if (type == true)
-            {
-                byte[] returnPacket = new byte[1];
-                returnPacket[0] = mouseInputByte;
-                return returnPacket;
-            }
-            X = (int)(X * clientWidth / serverWidth);
-            Y = (int)(Y * clientHeight / serverHeight);
-            byte[] inputPacket = new byte[5];
-            inputPacket[0] = imageByte;
-            byte[] numberByte = new byte[2];
-            numberByte = BitConverter.GetBytes(X);
-            inputPacket[1] = numberByte[0];
-            inputPacket[2] = numberByte[1];
-            numberByte = BitConverter.GetBytes(Y);
-            inputPacket[3] = numberByte[0];
-            inputPacket[4] = numberByte[1];
-            return inputPacket;
+            byte[] packet = new byte[1];
+            packet[0] = mouseInputByte;
+            return packet;
         }
+
+        internal static byte[] createMouseInputMove(short movX, short movY)
+        {
+            byte[] packet = new byte[5];
+            packet[0] = mouseMove;
+            byte[] number = new byte[2];
+            number = BitConverter.GetBytes(movX);
+            packet[1] = number[0];
+            packet[2] = number[1];
+            number = BitConverter.GetBytes(movY);
+            packet[3] = number[0];
+            packet[4] = number[1];
+            return packet;
+        }
+
+        /// <summary>
+        /// This contains also the correct dwData and dwFlags, so it is easier on the server side
+        /// This is essentially the same as createMouseInputMove
+        /// Afaik most mice do not have the hardware for tilt but I will support it anyway
+        /// </summary>
+        /// <param name="dwData">The data for the mouse wheel movement</param>
+        /// <param name="dwFlag">The dwFlag</param>
+        /// <returns>A packet which contains the requiererd information to simulate a mouse wheel movement</returns>
+        internal static byte[] createMouseInputMWheel(ushort dwFlags, short dwData)
+        {
+            byte[] packet = new byte[5];
+            packet[0] = mouseMWheel;
+            byte[] number = new byte[5];
+            number = BitConverter.GetBytes(dwFlags);
+            packet[1] = number[0];
+            packet[2] = number[1];
+            number = BitConverter.GetBytes(dwData);
+            packet[3] = number[0];
+            packet[4] = number[1];
+            return packet;
+        }
+
         internal static byte[] sendKbIn(System.Windows.Forms.Keys keyCode)
         {
             byte[] retBytes = new byte[2];
@@ -67,17 +91,18 @@ namespace RTP
             retBytes[1] = (byte)keyCode;
             return retBytes;
         }
+
         internal static byte[] receiveMouseInput(byte[] mouseInput)
         {
             switch (mouseInput[0])
             {
-                case mouseNewPosition:
-                    byte[] returnBytes = new byte[4];
-                    returnBytes[0] = mouseInput[0];
-                    returnBytes[1] = mouseInput[1];
-                    returnBytes[2] = mouseInput[2];
-                    returnBytes[3] = mouseInput[3];
-                    return returnBytes;
+                //case mouseNewPosition:
+                    //byte[] returnBytes = new byte[4];
+                    //returnBytes[0] = mouseInput[0];
+                    //returnBytes[1] = mouseInput[1];
+                    //returnBytes[2] = mouseInput[2];
+                    //returnBytes[3] = mouseInput[3];
+                    //return returnBytes;
                 default:
                     byte[] returnByte = new byte[1];
                     returnByte[0] = mouseInput[0];
