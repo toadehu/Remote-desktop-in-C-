@@ -388,8 +388,13 @@ namespace Jpeg
                             nrValues++;
                         }
                     }
-                    //retByteArr[cPos++] = pixelData[i * height + j];
-                    switch (nrValues)
+
+                    int subsamplingValue = (sumOfValues / nrValues);
+                    retByteArr[cPos++] = (byte)(char)subsamplingValue;
+
+                    //retByteArr[cPos++] = (byte)(char)pixelData[i * height + j];
+
+                    /*switch (nrValues)
                     {
                         case 4:
                             int subsamplingValue = (sumOfValues >> 2);
@@ -403,7 +408,7 @@ namespace Jpeg
                             subsamplingValue = (sumOfValues / nrValues);
                             retByteArr[cPos++] = (byte)(char)subsamplingValue;
                             break;
-                    }
+                    }*/
                 }
             }
             return retByteArr;
@@ -411,18 +416,18 @@ namespace Jpeg
 
 
         /// <summary>
-        /// Extrapolating of the pixel data of a channel
+        /// Extrapolating the pixel data for a channel
         /// If the ratio is changed from 4, it should be updated in the width and height parameters
         /// </summary>
         /// <param name="pixelData">The data of the channel</param>
         /// <param name="ratio">Ideally the ratio is left as 4 or is 2></param>
         /// <param name="width">Width of the image, defaults to 480x270, for a ratio of 4</param>
         /// <param name="height">Height of the image, defaults to 480x270, for a ratio of 4</param>
-        /// <returns>Returns the extrapolated values, the size is (width * ratio) * (height * ratio)</returns>
+        /// <returns>Nothing, it puts the extrapolated values in fullData, the size is (width * ratio) * (height * ratio)</returns>
         private static void extrapolate(byte[] pixelData, ref byte[] fullData, int ratio = 4, int width = 480, int height = 270)
         {
             int Nwidth = width * ratio, Nheight = height * ratio;
-            int cPos = 0;
+            int lg = width * height;
             for (int i = 0; i < Nwidth; ++i)
             {
                 for (int j = 0; j < Nheight; ++j)
@@ -1491,7 +1496,6 @@ namespace Jpeg
         /// <returns></returns>
         internal static byte[] notJpegEncoding(byte[] imageData, int width = 1920, int height = 1080)
         {
-            testDCTandIDCT();
             byte[] YData = new byte[width * height];
             byte[] CbData = new byte[width * height];
             byte[] CrData = new byte[width * height];
@@ -1502,6 +1506,7 @@ namespace Jpeg
             Buffer.BlockCopy(YCbCrData, YData.Length, CbData, 0, CbData.Length);
             Buffer.BlockCopy(YCbCrData, YData.Length + CbData.Length, CrData, 0, CrData.Length);
             //11ms in release
+
             byte[] NewCrData = new byte[width / 4 * height / 4];
             Thread NewCr = new Thread(
                 () => NewCrData = subsampling(CrData));
@@ -1515,28 +1520,47 @@ namespace Jpeg
             return ret;
         }
 
-        internal static byte[] notJpegDecoding(byte[] imageData, int width = 1920, int height = 1080)
+        internal static byte[] notJpegDecoding(byte[] imageData, int width = 1920, int height = 1080, int ratio = 4)
         {
             byte[] Ydata = new byte[width * height];
-            byte[] CbData = new byte[(width / 4) * (height / 4)];
-            byte[] CrData = new byte[(width / 4) * (height / 4)];
+            byte[] CbData = new byte[(width / ratio) * (height / ratio)];
+            byte[] CrData = new byte[(width / ratio) * (height / ratio)];
             Buffer.BlockCopy(imageData, 0, Ydata, 0, Ydata.Length);
             Buffer.BlockCopy(imageData, Ydata.Length, CbData, 0, CbData.Length);
             Buffer.BlockCopy(imageData, Ydata.Length + CbData.Length, CrData, 0, CrData.Length);
+
             byte[] newCb = new byte[width * height];
             extrapolate(CbData, ref newCb);
             byte[] newCr = new byte[width * height];
             extrapolate(CrData, ref newCr);
+
             byte[] ret = new byte[3 * width * height];
-            for (int i = 0; i < ret.Length; i+=3)
+            int lg = ret.Length;
+            for (int i = 0; i < lg; i+=3)
             {
                 int pos = i / 3;
                 ret[i] = Ydata[pos];
-                ret[i+1] = newCb[pos];
-                ret[i+2] = newCr[pos];
+                ret[i + 1] = newCb[pos];
+                ret[i + 2] = newCr[pos];
             }
             convertToRGBInPlace(ref ret);
             return ret;
+        }
+
+        internal static void testConv(byte[] imageData, int width = 1920, int height = 1080)
+        {
+            byte[] YCbCrData = convertToYCbCr(imageData);
+            byte[] YCbCrData2 = new byte[YCbCrData.Length];
+            int offset = width * height;
+            for (int i = 0; i < YCbCrData.Length; i = i + 3)
+            {
+                int pos = i / 3;
+                YCbCrData2[i] = YCbCrData[pos];
+                YCbCrData2[i+1] = YCbCrData[pos + offset];
+                YCbCrData2[i+2] = YCbCrData[pos + offset * 2];
+            }
+            convertToRGBInPlace(ref YCbCrData2);
+            createBmp(YCbCrData2).Save("testConv.bmp");
         }
     }
 }
