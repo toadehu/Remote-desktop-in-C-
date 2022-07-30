@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 #nullable enable
 
 namespace ServerApp
@@ -19,26 +20,27 @@ namespace ServerApp
         private static int listenPort = 5902;
         private string ip = "192.168.1.0";
         private bool ScreenCaptureOn = false;
-        private Bitmap? prevBmp = null;
         private KeyBoardHook keyboardhook;
         private static Thread inpThr = new Thread(new ThreadStart(receiveInputs));
         private static IPEndPoint clientEndPoint = new IPEndPoint(IPAddress.Any, 1);
         private static System.Timers.Timer ScreenCapT;
-        private static UdpClient clientSocket = new UdpClient(5901);
-        private static string clientIp = "192.168.1.0";
+        private static UdpClient clientSocket = new UdpClient(5902);
+        private static string clientIp = "127.0.0.1";
         //private static IPEndPoint localhost = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 5903);//when testing this should be 5902
         //private static UdpClient localclient = new UdpClient(localhost);
         public Form1()
         {
             InitializeComponent();
+            CheckRegistry();
             this.FormClosed += new FormClosedEventHandler(Form1_FormClosed);
-            inpThr.IsBackground = true;
-            inpThr.Start();
+            //inpThr.IsBackground = true;
+            //inpThr.Start();
             //this.keyboardhook = new KeyBoardHook(true);
             //keyboardhook.HookAllKeys = true;
             //this.keyboardhook.KeyDown += new KeyEventHandler(keyboardhook_KeyDown);
             //this.keyboardhook.KeyUp += new KeyEventHandler(keyboardhook_KeyUp);
             //this.keyboardhook.Hook();
+
             if (File.Exists("ip.txt"))
             {
                 string ipPath = Path.GetFullPath("ip.txt");
@@ -50,24 +52,47 @@ namespace ServerApp
                     try
                     {
                         IPAddress clientIp = IPAddress.Parse(ip);
-                        clientEndPoint = new IPEndPoint(clientIp, 5902);
+                        clientEndPoint = new IPEndPoint(clientIp, 5901);
                     }
                     catch (Exception ex)
                     {
                         //anyone can mess with the ip.txt file
-                        clientEndPoint = new IPEndPoint(IPAddress.Parse("192.168.1.0"), 5902);
+                        clientEndPoint = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 5901);
                     }
                 }
             }
+
             else
             {
                 File.Create("ip.txt");
             }
             clientSocket.Connect(new IPEndPoint(IPAddress.Parse(clientIp), 5901) );
+            //Form2 form2 = new Form2();
+            //form2.Show();
+
             //localTest(); //This works fine
+
             StartScreenCapture();
+
             //simulateKeybd.sendKey(Keys.RWin);
             //simulateKeybd.sendKey(Keys.D);
+        }
+
+        /// <summary>
+        ///  Checks if the registry for the password exists.
+        ///  If it doesn't exist it's created for the default password coco
+        /// </summary>
+        void CheckRegistry()
+        {
+            try
+            {
+                RegistryKey passAuth = Registry.CurrentUser.OpenSubKey("CocoReg", true);
+            }
+            catch (Exception ex)
+            {
+                //
+                RegistryKey passAuth = Registry.CurrentUser.CreateSubKey("CocoReg", true);
+            }
         }
         void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
@@ -88,14 +113,14 @@ namespace ServerApp
         private static void receiveInputs()
         {
             IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, listenPort);
-            UdpClient receiveClient = new UdpClient(endPoint);
+            //UdpClient receiveClient = new UdpClient(endPoint);
             //receiveClient.Connect(endPoint);
             //localclient.Connect(localhost);
             try
             {
                 while (true)
                 {
-                    byte[] recData = receiveClient.Receive(ref endPoint);
+                    byte[] recData = clientSocket.Receive(ref endPoint);
                     //byte[] recData = localclient.Receive(ref endPoint);
                     for (int i = 0; i < recData.Length; ++i)
                     {
@@ -227,18 +252,28 @@ namespace ServerApp
         }
         private void SendScreen(Object source, System.Timers.ElapsedEventArgs e)
         {
+            //drawCursor.drawTheDamnCursor();
             //simulateKeybd.sendKey(Keys.W);
             //simulateMouse.SimulateLeftClick();
-            //System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();wwwwwwwwwwwwwwwwww
+
             Bitmap screenBmp = screenCapture.captureScreenWithCursor();
-            //watch.Stop();
-            //MessageBox.Show(watch.ElapsedMilliseconds.ToString());
+            System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
             //screenBmp.Save("a.bmp");
             byte[] data = jpegCompression.convertBmpToByteArr(screenBmp);
-            byte[] img = jpegCompression.notJpegEncoding(data);
+            byte[] img = jpegCompression.convertImage(data);
+            watch.Stop();
+            //MessageBox.Show(watch.ElapsedMilliseconds.ToString());
+
+            //jpegCompression.testConv(data);
+
+            byte[] img2 = jpegCompression.notJpegEncoding(data);
+            Bitmap bmp2 = jpegCompression.createBmp(jpegCompression.notJpegDecoding(img2));
+            bmp2.Save("Aah.bmp");
+
+            byte[] decoded = jpegCompression.recoverImage(img);
+            Bitmap bmp = jpegCompression.createBmp(decoded);
+            bmp.Save("Aaah.bmp");
             screenBmp.Dispose();
-            GC.Collect();
-            img = null;
             if (img != null)
             {
                 byte[][] imgData = RTP.RTP.convertLongDataToRTPPackets(img, RTP.RTP.imageByte);
@@ -252,6 +287,7 @@ namespace ServerApp
                     }
                 }
             }
+            GC.Collect();
         }
         private bool sendPacket(byte[] data)
         {
@@ -369,6 +405,34 @@ namespace ServerApp
         {
             SendInputClass.sendKbIn(e.KeyCode, false);
             e.Handled = true;
+        }
+
+        private void buttonPass_Click(object sender, EventArgs e)
+        {
+            Form2 form2 = new Form2();
+            form2.Show();
+        }
+    }
+
+    internal class drawCursor
+    {
+        //why am I doing this
+        [DllImport("User32.dll")]
+        public static extern IntPtr GetDC(IntPtr hwnd);
+        [DllImport("User32.dll")]
+        public static extern void ReleaseDC(IntPtr hwnd, IntPtr dc);
+
+        public static void drawTheDamnCursor()
+        {
+            IntPtr desktopPtr = GetDC(IntPtr.Zero);
+            Graphics g = Graphics.FromHdc(desktopPtr);
+
+            Image cursor = Image.FromFile("cursor.png");
+            Rectangle rect = new Rectangle(0, 0, cursor.Width, cursor.Height);
+            g.DrawImage(cursor, rect);
+
+            g.Dispose();
+            ReleaseDC(IntPtr.Zero, desktopPtr);
         }
     }
     internal class screenCapture
