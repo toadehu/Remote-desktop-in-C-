@@ -371,7 +371,9 @@ namespace Jpeg
             {
                 ratio = 1;
             }
-            int sz = (width / ratio) * (height / ratio);
+            int Nwidth = width / ratio;
+            int Nheight = height / ratio;
+            int sz = Nheight * Nwidth;
             byte[] retByteArr = new byte[sz];
             int cPos = 0;
             for (int i = 0; i < width; i += ratio)
@@ -384,13 +386,13 @@ namespace Jpeg
                     {
                         for (int cj = j; cj < j + ratio; ++cj)
                         {
-                            sumOfValues += pixelData[ci * height + cj];
+                            sumOfValues += pixelData[ci + cj * width];
                             nrValues++;
                         }
                     }
-
+                    cPos = (i / ratio) + (int)(j / ratio) * Nwidth;
                     int subsamplingValue = (sumOfValues / nrValues);
-                    retByteArr[cPos++] = (byte)(char)subsamplingValue;
+                    retByteArr[cPos] = (byte)(char)subsamplingValue;
 
                     //retByteArr[cPos++] = (byte)(char)pixelData[i * height + j];
 
@@ -433,8 +435,8 @@ namespace Jpeg
                 for (int j = 0; j < Nheight; ++j)
                 {
                     int Ni = i / ratio, Nj = j / ratio;
-                    int pos = Ni * height + Nj;
-                    fullData[i * Nheight + j] = pixelData[pos];
+                    int pos = Ni + Nj * width;
+                    fullData[i + j * Nwidth] = pixelData[pos];
                 }
             }
         }
@@ -1394,7 +1396,7 @@ namespace Jpeg
             }
         }
 
-        private static void writeByteArr(string filename, byte[] arr)
+        internal static void writeByteArr(string filename, byte[] arr)
         {
             using (System.IO.StreamWriter sw = new System.IO.StreamWriter(filename))
             {
