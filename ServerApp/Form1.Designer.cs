@@ -1,4 +1,4 @@
-﻿
+
 namespace ServerApp
 {
     partial class Form1
@@ -36,6 +36,7 @@ namespace ServerApp
             this.Timer1 = new System.Windows.Forms.Timer(this.components);
             this.numericUpDownWidth = new System.Windows.Forms.NumericUpDown();
             this.numericUpDownHeight = new System.Windows.Forms.NumericUpDown();
+            this.buttonPass = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownWidth)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownHeight)).BeginInit();
             this.SuspendLayout();
@@ -102,11 +103,22 @@ namespace ServerApp
             0,
             0});
             // 
+            // buttonPass
+            // 
+            this.buttonPass.Location = new System.Drawing.Point(173, 28);
+            this.buttonPass.Name = "buttonPass";
+            this.buttonPass.Size = new System.Drawing.Size(148, 24);
+            this.buttonPass.TabIndex = 5;
+            this.buttonPass.Text = "Manage password";
+            this.buttonPass.UseVisualStyleBackColor = true;
+            this.buttonPass.Click += new System.EventHandler(this.buttonPass_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(333, 294);
+            this.Controls.Add(this.buttonPass);
             this.Controls.Add(this.numericUpDownHeight);
             this.Controls.Add(this.numericUpDownWidth);
             this.Controls.Add(this.Start);
@@ -129,6 +141,7 @@ namespace ServerApp
         private System.Windows.Forms.Timer Timer1;
         private System.Windows.Forms.NumericUpDown numericUpDownWidth;
         private System.Windows.Forms.NumericUpDown numericUpDownHeight;
+        private System.Windows.Forms.Button buttonPass;
     }
 }
 
