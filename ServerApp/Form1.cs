@@ -87,11 +87,22 @@ namespace ServerApp
             try
             {
                 RegistryKey passAuth = Registry.CurrentUser.OpenSubKey("CocoReg", true);
+                if (passAuth == null)
+                {
+                    byte[] defaultPass = Form2.encryptPass("password");
+                    jpegCompression.writeByteArr("pass.txt", defaultPass);
+                    RegistryValueKind kind = RegistryValueKind.Unknown;
+                    passAuth = Registry.CurrentUser.CreateSubKey("CocoReg", true);
+                    passAuth.SetValue("Password", Encoding.Default.GetString(defaultPass));
+                }
             }
             catch (Exception ex)
             {
-                //
+                Registry.CurrentUser.DeleteSubKey("CocoReg");
+                byte[] defaultPass = Form2.encryptPass("password");
+                RegistryValueKind kind = RegistryValueKind.Unknown;
                 RegistryKey passAuth = Registry.CurrentUser.CreateSubKey("CocoReg", true);
+                passAuth.SetValue("Password", Encoding.Default.GetString(defaultPass));
             }
         }
         void Form1_FormClosed(object sender, FormClosedEventArgs e)
