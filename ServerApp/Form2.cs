@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -8,7 +8,6 @@ namespace ServerApp
 {
     public partial class Form2 : Form
     {
-        public static Aes aes = Aes.Create();
         public Form2()
         {
             InitializeComponent();
