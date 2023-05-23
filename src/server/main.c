@@ -20,7 +20,7 @@ int main (int argc, char *argv[])
 		printf("error initializing SDL: %s\n", SDL_GetError());
 	}
 
-	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, "Test", SDL_WINDOW_SHOWN);
+	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, "Test", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
 	SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
 
 	//GRAPHICS_RENDERER *la_lautari = create_graphics_renderer(800, 600, "Lautari", SDL_WINDOW_SHOWN);
@@ -81,15 +81,17 @@ int main (int argc, char *argv[])
 						
 						#ifdef _DEBUG
 						printf("Writing test.yuv file\n");
-						save_yuv420_buffer("test.yuv", yuv_buffer, screen_width, screen_height);
 						#endif
 						if (basic_enc == NULL)
 						{
 							basic_enc = create_basic_video_enc(screen_width, screen_height,
-							 NULL, 
-							VIDEO_YUV420 | RLE_TWO_PASS, NULL);
+							 0, 
+							VIDEO_YUV420 | RLE_TWO_PASS, 0);
 
 							int _sz = basic_encode_next_frame(basic_enc, yuv_buffer);
+							#ifdef _DEBUG
+							printf("Size of first frame: %d\n", _sz);
+							#endif
 						}
 					}
 					break;
