@@ -51,25 +51,14 @@ int rle_first_pass(unsigned char* original, basic_video_enc* video)
     unsigned char curmatch = 0, comp = 0, cval = 0;
     if (original[0] != video -> prev_image[0])
     {
-        comp = original[0];
+        cval = original[0];
     }
     for (int i = 0; i < video -> image_size; i+=1)
     {
         cval = (original[i] != video->prev_image[i]) ? original[i] : 0;
-        if (cval == comp)
+        if (cval != comp)
         {
-            if (curmatch == 255)
-            {
-                video -> rle_image[video -> rle_size1] = comp;
-                video -> rle_image_size[video -> rle_size1] = 255;
-                video -> rle_size1 += 1;
-                curmatch = 0;
-            }
-            curmatch++;
-        }
-        else
-        {
-            if (curmatch)
+            if (curmatch != 0) 
             {
                 video -> rle_image[video -> rle_size1] = comp;
                 video -> rle_image_size[video -> rle_size1] = curmatch;
@@ -77,9 +66,18 @@ int rle_first_pass(unsigned char* original, basic_video_enc* video)
                 curmatch = 0;
             }
             comp = cval;
+
         }
+        if (curmatch == 255)
+        {
+            video -> rle_image[video -> rle_size1] = comp;
+            video -> rle_image_size[video -> rle_size1] = 255;
+            video -> rle_size1 += 1;
+            curmatch = 0;
+        }
+        curmatch++;
     }
-    if (curmatch)
+    if (curmatch != 0)
     {
         video -> rle_image[video -> rle_size1] = comp;
         video -> rle_image_size[video -> rle_size1] = curmatch;
@@ -94,6 +92,24 @@ int rle_second_pass(basic_video_enc* video)
     unsigned char curmatch = 0, comp = video -> rle_image_size[0];
     for (int i = 0; i < video -> rle_size1; i+=1)
     {
+        if (comp != video -> rle_image_size[i])
+        {
+            if (curmatch)
+            {
+                video -> rle_image_pass2[video -> rle_size2] = curmatch;
+                video -> rle_size2 += 1;
+                curmatch = 0;
+            }
+            comp = video -> rle_image_size[i];
+        }
+        if (curmatch == 255)
+        {
+            video -> rle_image_pass2[video -> rle_size2] = 255;
+            video -> rle_size2 += 1;
+            curmatch = 0;
+        }
+        curmatch++;
+        /*
         if (video -> rle_image_size[i] == comp)
         {
             if (curmatch == 255)
@@ -110,14 +126,15 @@ int rle_second_pass(basic_video_enc* video)
             {
                 video -> rle_image_pass2[video -> rle_size2] = comp;
                 video -> rle_size2 += 1;
-                curmatch = 0;
+                curmatch = 1;
             }
             comp = video -> rle_image_size[i];
         }
+        */
     }
     if (curmatch)
     {
-        video -> rle_image_pass2[video -> rle_size2] = comp;
+        video -> rle_image_pass2[video -> rle_size2] = curmatch;
         video -> rle_size2 += 1;
     }
     int cur_sum = 0;
@@ -179,14 +196,12 @@ basic_video_dec* create_basic_video_dec(int width, int height, int bitrate, int 
 void rle_first_decode(unsigned char* data, int size, basic_video_dec* video)
 {
     video -> rle_size2 = 0;
-    video -> rle_size1 = 0;
     for (int i = 0; i < size; i+=1)
     {
         while (data[i + size] > 0)
         {
             video -> rle_image_size[video -> rle_size2] = data[i];
             video -> rle_size2 += 1;
-            video -> rle_size1 += data[i];
             data[i + size] -= 1;
         }
     }
@@ -206,11 +221,12 @@ void rle_second_decode(unsigned char* data, basic_video_dec* video)
     }
 }
 
-void decode_image(unsigned char* data, basic_video_dec* video, int offset)
+void basic_decode_next_frame(basic_video_dec* video, unsigned char* data, int size_of_data, int offset)
 {
     if (video -> profile & RLE_TWO_PASS)
     {
-        rle_first_decode(data + offset, video -> rle_size1, video);
+        rle_first_decode(data + offset, (size_of_data - offset) / 2, video);
+        printf("Value of offset: %d, and computed value: %d\n", offset, video -> rle_size2);
         rle_second_decode(data, video);
     }
 }
