@@ -1,6 +1,6 @@
 #pragma once
 
-#include "framework.h"
+#include "graphics_objects.h"
 
 typedef struct _GRAPHICS_RENDERER 
 {
@@ -42,7 +42,7 @@ typedef struct _GRAPHICS_RENDERER
 void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect)
 {
     backg_rect -> w = window_rect.w;
-    backg_rect -> h = window_rect.h;
+    backg_rect -> h = window_rect.h / RATIO;
     backg_rect -> x = (window_rect.w - backg_rect -> w) / 2;
     backg_rect -> y = (window_rect.h - backg_rect -> h) / 2;
 }
@@ -53,18 +53,15 @@ void update_rectangle_size(SDL_Rect* rect, int w, int h)
     rect -> h = h;
 }
 
-GRAPHICS_RENDERER* create_graphics_renderer()
+GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, int flags, Uint32 render_flags)
 {
     GRAPHICS_RENDERER* graphics_renderer = (GRAPHICS_RENDERER*)malloc(sizeof(GRAPHICS_RENDERER));
     memset(graphics_renderer, 0, sizeof(GRAPHICS_RENDERER));
 
-	graphics_renderer -> window = SDL_CreateWindow("Casa Manelelor",
+	graphics_renderer -> window = SDL_CreateWindow(Name,
 						SDL_WINDOWPOS_CENTERED,
 						SDL_WINDOWPOS_CENTERED,
-						640, 360, SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
-
-	//make the rendering hardware accelerated
-	Uint32 render_flags = SDL_RENDERER_ACCELERATED;
+						w, h, flags);
 
 	//create a renderer
 	graphics_renderer ->  renderer = SDL_CreateRenderer(graphics_renderer -> window, -1, render_flags);
@@ -95,6 +92,15 @@ GRAPHICS_RENDERER* create_graphics_renderer()
     graphics_renderer -> ms = 1000 / 24;
 
     return graphics_renderer;
+}
+
+/*
+*   Wrapper function to update the background image according to the flags (which are taken from graphics_objects.h)
+*/
+void renderer_update_bg(GRAPHICS_RENDERER* renderer, unsigned char* data, int flags)
+{
+    image_element_update_graphics(renderer -> images[0][0], data, flags);
+
 }
 
 // Update the sizes of the images
