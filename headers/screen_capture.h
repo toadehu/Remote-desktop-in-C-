@@ -156,7 +156,7 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
             free(*_buffer);
         }
         *_size = width * height * 4;
-        *_buffer = (unsigned char *)__aligned_malloc(*size, 16);
+        *_buffer = (unsigned char *)__aligned_malloc(*_size, 16);
     }
 
     *_size = width * height * 4;
@@ -175,16 +175,16 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     BitBlt(hdcMemDC, 0, 0, width, height, hdcScreen, 0, 0, SRCCOPY | CAPTUREBLT);
 
     // Copy the bitmap data into the buffer
-    BITMAPINFOHEADER bi = {*sizeof(BITMAPINFOHEADER), width, height, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
+    BITMAPINFOHEADER bi = {sizeof(BITMAPINFOHEADER), width, height, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
 
-    GetDIBits(hdcScreen, hbmScreen, 0, height, buffer, (BITMAPINFO *)&bi, DIB_RGB_COLORS);
+    GetDIBits(hdcScreen, hbmScreen, 0, height, *_buffer, (BITMAPINFO *)&bi, DIB_RGB_COLORS);
 
     // Get the cursor position and dimensions
     POINT cursorPos;
     GetCursorPos(&cursorPos);
     int cursorX = cursorPos.x;
     int cursorY = cursorPos.y;
-    CURSORINFO cursorInfo = {*sizeof(CURSORINFO)};
+    CURSORINFO cursorInfo = {sizeof(CURSORINFO)};
     GetCursorInfo(&cursorInfo);
 
     // Capture the cursor if it is visible
@@ -205,12 +205,12 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
 
         // Copy the cursor bitmap into the screen bitmap at the cursor position
         BITMAP bmCursor;
-        GetObject(hbmCursor, *sizeof(BITMAP), &bmCursor);
-        BITMAPINFO bmi = {*sizeof(BITMAPINFOHEADER), bmCursor.bmWidth, bmCursor.bmHeight, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
+        GetObject(hbmCursor, sizeof(BITMAP), &bmCursor);
+        BITMAPINFO bmi = {sizeof(BITMAPINFOHEADER), bmCursor.bmWidth, bmCursor.bmHeight, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
         unsigned char *cursorBits;
-        GetDIBits(hdcCursor, hbmCursor, 0, bmCursor.bmHeight, NULL, &bmi, DIB_RGB_COLORS);
+        GetDIBits(hdcCursor, hbmCursor, 0, bmCursor.bmHeight, NULL, (BITMAPINFO*)&bmi, DIB_RGB_COLORS);
         cursorBits = (unsigned char *)__aligned_malloc(bmCursor.bmWidthBytes * bmCursor.bmHeight, 16);
-        GetDIBits(hdcCursor, hbmCursor, 0, bmCursor.bmHeight, cursorBits, &bmi, DIB_RGB_COLORS);
+        GetDIBits(hdcCursor, hbmCursor, 0, bmCursor.bmHeight, cursorBits, (BITMAPINFO*)&bmi, DIB_RGB_COLORS);
         for (int y = 0; y < bmCursor.bmHeight; y++)
         {
             for (int x = 0; x < bmCursor.bmWidth; x++)
@@ -228,12 +228,12 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
                 }
             }
         }
+        // Clean up the cursor bitmap and device context
+        free(cursorBits);
+        SelectObject(hdcCursor, oldCursorObj);
+        DeleteObject(hbmCursor);
+        DeleteDC(hdcCursor);
     }
-    // Clean up the cursor bitmap and device context
-    free(cursorBits);
-    SelectObject(hdcCursor, oldCursorObj);
-    DeleteObject(hbmCursor);
-    DeleteDC(hdcCursor);
 
     // Clean up the screen bitmap and device contexts
     SelectObject(hdcMemDC, oldObj);
@@ -248,7 +248,7 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     Display* display = XOpenDisplay(NULL);
     Window root = DefaultRootWindow(display);
 
-    XWindowAttributes attributes = {0};
+    XWindowAttributes attributes;
     XGetWindowAttributes(display, root, &attributes);
 
     int Width = attributes.width;
@@ -265,19 +265,19 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     exit(EXIT_FAILURE);
     }
 
-    if ((*_size) != Width * Height * (attributes.depth >> 3))
+    if ((*_size) != Width * Height * (image -> bits_per_pixel >> 3))
     {
         if (*_buffer != NULL)
         {
             free(*_buffer);
         }
-        *_buffer = (unsigned char *)__aligned_malloc(Width * Height * (attributes.depth >> 3), 16);
+        *_buffer = (unsigned char *)__aligned_malloc(Width * Height * (image -> bits_per_pixel >> 3), 16);
     }
 
-    (*_size) = Width * Height * (attributes.depth >> 3);
+    (*_size) = Width * Height * (image -> bits_per_pixel >> 3);
 
     #ifdef _DEBUG
-    printf("My attemp at the size: %d, the bit depth: %d\n", (*_size), attributes.depth);
+    printf("My attemp at the size: %d, the bit depth: %d\n", (*_size), image -> bits_per_pixel);
     #endif
 
     memcpy(*_buffer, image->data, *_size);
@@ -287,6 +287,7 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     #endif
 
     XDestroyImage(image);
+    XCloseDisplay(display);
     #ifdef _DEBUG
     printf("Finished capturing X screenshot\n");
     #endif
