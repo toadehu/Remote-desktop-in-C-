@@ -1,17 +1,17 @@
 #include "framework.h"
 
-// Define a struct to hold arguments for capture_screen function
+/* Define a struct to hold arguments for capture_screen function*/
 struct CaptureScreenArgs {
-    uint8_t** screen_bits;
+    char** screen_bits;
     size_t* buffer_size;
     int* screen_width;
     int* screen_height;
 };
 
-// Define a struct to hold arguments for resize_image_bilinear function
+/* Define a struct to hold arguments for resize_image_bilinear function*/
 struct ResizeImageArgs {
-    uint8_t* screen_bits;
-    uint8_t** resized_screen_bits;
+    char* screen_bits;
+    char** resized_screen_bits;
     int screen_width;
     int screen_height;
     int target_width;
@@ -44,8 +44,8 @@ void capture_and_resize(void* args)
 		cap_and_resize_args -> resize_args.target_width, cap_and_resize_args -> resize_args.target_height,
 		cap_and_resize_args -> resize_args.resized_size, cap_and_resize_args -> resize_args.channels);
 
-		//resize_image_nearest_neighbor(screen_bits, resized_screen_bits, screen_width, screen_height,
-		// renderer -> images[0][0] -> rect.w, renderer -> images[0][0] -> rect.h, &resized_size, 4);
+		/*resize_image_nearest_neighbor(screen_bits, resized_screen_bits, screen_width, screen_height,*/
+		/* renderer -> images[0][0] -> rect.w, renderer -> images[0][0] -> rect.h, &resized_size, 4);*/
 
 		clock_t end = clock();
 
@@ -66,9 +66,10 @@ int main(int argc, char* argv[])
 	serverIp = (char*)malloc(20);
 	user = (char*)malloc(128);
 
-	for (int i = 1; i < argc; i++)
+	int i;
+
+	for (i = 1; i < argc; i++)
 	{
-		printf("argv: %s\n", argv[i]);
 		switch (argv[i][1])
 		{
 			case 'h': 
@@ -89,7 +90,6 @@ int main(int argc, char* argv[])
 					printf("Invalid argument\n Correct usage: -ip4/6 IPADDR@user -p PORT\n");
 					exit(1);
 				}
-				printf("BUM: %c\n", argv[i][2]);
 				if (argv[i][3] == '4')
 				{
 					ipver = 4;
@@ -109,7 +109,6 @@ int main(int argc, char* argv[])
 					printf("Invalid argument\nCorrect usage: -ip4/6 IPADDR@user -p PORT\n");
 					exit(1);
 				}
-				printf("arobas: %p\n", arobas);
 				size_t serverIpLen = arobas - argv[i + 1];
                 serverIp = (char *) malloc((serverIpLen + 1) * sizeof(char));
                 strncpy(serverIp, argv[i + 1], serverIpLen);
@@ -133,9 +132,9 @@ int main(int argc, char* argv[])
 
     renderer -> ms = 50;
 
-	unsigned char* screen_bits = NULL;
+	char* screen_bits = NULL;
 
-    unsigned char* resized_screen_bits = NULL;
+    char* resized_screen_bits = NULL;
 
     int resized_size = 0;
 
@@ -143,21 +142,21 @@ int main(int argc, char* argv[])
 
 	capture_screen(&screen_bits, &buffer_size, &screen_width, &screen_height);
 
-    //This should mean that the buffer is never reallocated, so there is no data racing issues
-    resized_screen_bits = (unsigned char*)__aligned_malloc(buffer_size, 4096);
+    /*This should mean that the buffer is never reallocated, so there is no data racing issues*/
+    resized_screen_bits = (char*)__aligned_malloc(buffer_size, 4096);
     resized_size = buffer_size;
 
     printf("Screen size: %d x %d\n", screen_width, screen_height);
 
     renderer_update_bg(renderer, screen_bits, IMAGE_FROM_RGB32);
 
-    //Is the main loop active?
+    /*Is the main loop active?*/
 	bool loop = 1, sock_connected = 0;
 
-	TCP_SOCKET* sock = TCP_SOCKET_create(4001, INADDR_LOOPBACK, false, false);
+	TCP_SOCKET* sock = TCP_SOCKET_create(4001, INADDR_LOOPBACK, false, false, CLIENT);
 
 #pragma region Initiate the thread
-	//Initiate struct to move computations on a parallel thread
+	/*Initiate struct to move computations on a parallel thread*/
     struct CaptureScreenArgs capture_args;
     struct ResizeImageArgs resize_args;
 	struct CapAndResizeArgs capture_and_resize_args;
@@ -179,13 +178,13 @@ int main(int argc, char* argv[])
 	capture_and_resize_args.cap_args = capture_args;
 	capture_and_resize_args.resize_args = resize_args;
 
-	//Start the thread
+	/*Start the thread*/
 	pthread_t comp_thread;
 
-	//pthread_create(&comp_thread, NULL, capture_and_resize, &capture_and_resize_args);
+	/*pthread_create(&comp_thread, NULL, capture_and_resize, &capture_and_resize_args);*/
 #pragma endregion
 
-	//Main loop
+	/*Main loop*/
 	while (loop)
 	{
 		SDL_Event event;
@@ -202,9 +201,9 @@ int main(int argc, char* argv[])
 			       	if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 					{
 						SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
-						//adjust the size of the texture
+						/*adjust the size of the texture*/
 						renderer_update_rects(renderer);
-                        //update_rectangle_size(&renderer -> images[0][0] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);
+                        /*update_rectangle_size(&renderer -> images[0][0] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);*/
 					}
 					break;
 				case SDL_MOUSEBUTTONDOWN:
@@ -229,8 +228,8 @@ int main(int argc, char* argv[])
         resize_image_bilinear(screen_bits, &resized_screen_bits, screen_width, screen_height,
          renderer -> images[0][0] -> rect.w, renderer -> images[0][0] -> rect.h, &resized_size, 4);
 
-        //resize_image_nearest_neighbor(screen_bits, resized_screen_bits, screen_width, screen_height,
-        // renderer -> images[0][0] -> rect.w, renderer -> images[0][0] -> rect.h, &resized_size, 4);
+        /*resize_image_nearest_neighbor(screen_bits, resized_screen_bits, screen_width, screen_height,*/
+        /* renderer -> images[0][0] -> rect.w, renderer -> images[0][0] -> rect.h, &resized_size, 4);*/
 
         clock_t end = clock();
 
@@ -238,15 +237,15 @@ int main(int argc, char* argv[])
 
         renderer_update_bg(renderer, resized_screen_bits, IMAGE_FROM_RGB32);
 
-		//clear the screen
+		/*clear the screen*/
 		SDL_RenderClear(renderer -> renderer);
 		
-		//render the images
+		/*render the images*/
 		renderer_draw_images(renderer);
 
-		//SDL_RenderCopy(renderer -> renderer, renderer -> images[0][0] -> texture, NULL, &renderer -> images[0][0] -> rect);
+		/*SDL_RenderCopy(renderer -> renderer, renderer -> images[0][0] -> texture, NULL, &renderer -> images[0][0] -> rect);*/
 
-		// update the screen
+		/* update the screen*/
 		SDL_RenderPresent(renderer -> renderer);
         
 		SDL_Delay(renderer -> ms);
