@@ -10,7 +10,7 @@ void update_versace_size(SDL_Rect* rect, SDL_Rect win_rect)
 
 void versace_button_on_click()
 {
-	//To be completed
+	/*To be completed*/
 }
 
 int main (int argc, char *argv[])
@@ -20,10 +20,10 @@ int main (int argc, char *argv[])
 		printf("error initializing SDL: %s\n", SDL_GetError());
 	}
 
-	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, "Test", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, "Test", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
 	SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
 
-	//GRAPHICS_RENDERER *la_lautari = create_graphics_renderer(800, 600, "Lautari", SDL_WINDOW_SHOWN);
+	/*GRAPHICS_RENDERER *la_lautari = create_graphics_renderer(800, 600, "Lautari", SDL_WINDOW_SHOWN);*/
 
 	button_element *versace_button = create_new_button_element(renderer -> renderer, "button.png", "flopa.jpg", renderer -> win_rect.w / 8, renderer -> win_rect.h / 8,
 	  renderer -> win_rect.w / 8, renderer -> win_rect.h / 8, update_versace_size);
@@ -39,10 +39,10 @@ int main (int argc, char *argv[])
 
 	int buffer_size = 0, screen_width, screen_height;
 
-	//Is the main loop active?
+	/*Is the main loop active?*/
 	bool loop = 1;
 
-	//create the video encoder
+	/*create the video encoder*/
 	basic_video_enc* basic_enc = NULL;
 
 	while (loop)
@@ -61,9 +61,9 @@ int main (int argc, char *argv[])
 			       	if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 					{
 						SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
-						//adjust the size of the texture
+						/*adjust the size of the texture*/
 						renderer_update_rects(renderer);
-                        //update_rectangle_size(&renderer -> images[0][0] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);
+                        /*update_rectangle_size(&renderer -> images[0][0] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);*/
 					}
 					break;
 				case SDL_MOUSEBUTTONDOWN:
@@ -71,7 +71,7 @@ int main (int argc, char *argv[])
 					{
 						renderer_handle_click(renderer, event.button.x, event.button.y);
 	
-						//Start the capture
+						/*Start the capture*/
 						capture_screen(&screen_bits, &buffer_size, &screen_width, &screen_height);
 
 						if (yuv_buffer == NULL)
@@ -104,15 +104,15 @@ int main (int argc, char *argv[])
 			}
 		}
 
-		//clear the screen
+		/*clear the screen*/
 		SDL_RenderClear(renderer -> renderer);
 		
-		//render the images
+		/*render the images*/
 		renderer_draw_images(renderer);
 
-		//SDL_RenderCopy(renderer -> renderer, renderer -> images[0][0] -> texture, NULL, &renderer -> images[0][0] -> rect);
+		/*SDL_RenderCopy(renderer -> renderer, renderer -> images[0][0] -> texture, NULL, &renderer -> images[0][0] -> rect);*/
 
-		// update the screen
+		/* update the screen*/
 		SDL_RenderPresent(renderer -> renderer);
 
 		if (basic_enc != NULL)
@@ -122,7 +122,7 @@ int main (int argc, char *argv[])
 		if (yuv_buffer == NULL)
 			yuv_buffer = (unsigned char *)__aligned_malloc((screen_width * screen_height * 3) / 2, 16);
 						
-		//As it stands, using SIMD version of conversions yields to wrong results, maybe I will look into it
+		/*As it stands, using SIMD version of conversions yields to wrong results, maybe I will look into it*/
 		ARGBToYUV420(&screen_bits, screen_width, screen_height, &yuv_buffer);
 
 #ifdef _DEBUG
@@ -139,7 +139,7 @@ int main (int argc, char *argv[])
 
 		}
 
-		// calculate to 24fps
+		/* calculate to 24fps*/
 		SDL_Delay(renderer -> ms);
 	}
 
