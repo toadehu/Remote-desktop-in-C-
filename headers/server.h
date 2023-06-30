@@ -20,7 +20,15 @@
 
 #include "buffer_receiver.h"
 
-// An arbitrary value for the MSS (Maximum Segment Size)
+#define ALLOW_REALLOC 1
+#define ALLOW_DROP 2 /*This flag allows the socket to drop extra data that does not fit in the buffer*/
+#define CLIENT 4
+
+#define IP4 0
+#define IP6 1
+#define NO_BLOCKING 2 /*the call to connect() is non blocking*/
+
+/* An arbitrary value for the MSS (Maximum Segment Size)*/
 #define MSS 256
 #define HDR_TYPE __uint64_t
 
@@ -47,7 +55,6 @@ enum frame_type
     mouse_input_oem = 0x10,
     keybd_input = 0x20,
     auth = 0x80
-
 };
 
 /**
@@ -55,14 +62,14 @@ enum frame_type
  */
 typedef struct TCP_Socket
 {
-    int tcp_socket;            // Socket file descriptor
-    struct sockaddr_in server; // Server address structure
-    SOCKET *client;             // Clients' sockets
-    int client_num;            // Number of clients
-    int port;                  // Port number
-    unsigned char buffer[263]; // Buffer for data
-    int buffer_len;            // Length of the buffer
-    receiver_t *receiver;      // Receiver structure for buffering received data
+    __int32_t tcp_socket;            /* Socket file descriptor*/
+    struct sockaddr_in server; /* Server address structure*/
+    SOCKET *client;             /* Clients' sockets*/
+    int client_num;            /* Number of clients*/
+    int port;                  /* Port number*/
+    unsigned char buffer[263]; /* Buffer for data*/
+    __int32_t buffer_len;            /* Length of the buffer*/
+    receiver_t *receiver;      /* Receiver structure for buffering received data*/
 } TCP_SOCKET;
 
 /**
@@ -74,11 +81,11 @@ typedef struct TCP_Socket
  * @param max_connections Flag indicating how many connections to accept. The function is blocking untill all of the connections have been accepted
  * @return A pointer to the created TCP_SOCKET structure.
  */
-TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int max_connections)
+TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int max_connections, int flags)
 {
     TCP_SOCKET *server = (TCP_SOCKET *)malloc(sizeof(TCP_SOCKET));
 
-    // initialize winsock for Windows
+    /* initialize winsock for Windows*/
 #ifdef _WIN32
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
@@ -88,9 +95,16 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
     }
 #endif
 
-    // Creating the socket file descriptor
+    /* Creating the socket file descriptor*/
     server->port = port;
     server->tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+    //if it's a client socket, it doesn't need any of the other stuff
+    if (flags & CLIENT)
+    {
+        return server;
+    }
+
     if (server->tcp_socket == -1)
     {
         printf("Error creating socket, you should reconsider what you are doing\n");
@@ -99,7 +113,7 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
 
     server->receiver = NULL;
 
-    // Binding the socket to the port and to any address
+    /* Binding the socket to the port and to any address*/
     memset(&server->server, 0, sizeof(server->server));
     server->server.sin_family = AF_INET;
     server->server.sin_addr.s_addr = htonl(ip_listen);
@@ -121,9 +135,10 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
             return NULL;
         }
 
-        for (int i = 0; i < max_connections; i++)
+        int i;
+        for (i = 0; i < max_connections; i++)
         {
-            // Accept a new connection
+            /* Accept a new connection*/
             struct sockaddr_in client_addr;
             socklen_t addr_len = sizeof(client_addr);
             int client_socket = accept(server->tcp_socket, (struct sockaddr *)&client_addr, &addr_len);
@@ -132,11 +147,37 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
                 printf("Error accepting connection number: %d\n", i);
                 return NULL;
             }
-            //store the client
+            /*store the client*/
             server -> client[i] = client_socket;
         }
     }
     return server;
+}
+
+/**
+ * Connects a TCP_SOCKET to a given remote host
+ *
+ * @param ipaddr, the ip address of the remote host
+ * @param port, the port of the remote server 
+ * @param flags if last bit set then IP6 is used, otherwise it is IP4, there are also other flags
+ * @return the return value of the call to connect() 
+*/
+int TCP_SOCKET_connect(char* ipaddr, char* port, uint32_t flags)
+{
+    if (!(flags & NO_BLOCKING))
+    {
+        struct sockaddr_in server;
+        /*It's ip4*/
+        if (!(flags & 1))
+        {
+            server.sin_addr = inet_network();
+        }
+        /*It's ip6*/
+        else
+        {
+
+        }
+    }
 }
 
 /**
@@ -172,19 +213,21 @@ TCP_SOCKET *TCP_SOCKET_decoder_create(int port)
  * @param frame_size The size of the frame data.
  * @param header The header value for the frame.
  */
-void TCP_Send_Big_Frame(TCP_SOCKET *sock, unsigned char *frame, int frame_size, HDR_TYPE header)
+void TCP_Send_Big_Frame(TCP_SOCKET *sock, __int32_t client_id, unsigned char *frame, int frame_size, HDR_TYPE header)
 {
     memcpy(sock->buffer, &header, sizeof(HDR_TYPE));
     memcpy(sock->buffer + 8, frame, 248);
-    send(sock->client, sock->buffer, 256, 0);
+    send(sock->client[client_id], sock->buffer, 256, 0);
     int loop_end = (frame_size - 248) / 256;
-    for (int i = 0; i < loop_end; i += 1)
+
+    int i;
+    for (i = 0; i < loop_end; i += 1)
     {
-        send(sock->client, frame + 248 + i * 256, 256, 0);
+        send(sock->client[client_id], frame + 248 + i * 256, 256, 0);
     }
     if ((frame_size - 248) & 255)
     {
-        send(sock->client, frame + 248 + frame_size * 256, (frame_size - 248) & 255, 0);
+        send(sock->client[client_id], frame + 248 + frame_size * 256, (frame_size - 248) & 255, 0);
     }
 }
 
@@ -211,7 +254,8 @@ void TCP_Socket_send(TCP_SOCKET *server, unsigned char *buffer, int buffer_size)
     sendto(server->tcp_socket, buffer, buffer_size, 0, (struct sockaddr *)&server->client, sizeof(server->client));
 }
 
-/*  Represenatation of frame:
+/*   NOT IN USE THIS IS FOR UDP
+ *   Represenatation of frame:
  *   byte0 : frame type
  *   byte1 : packet id (frame number 0-255)
  *   byte2 & byte3: total number of packets
@@ -221,8 +265,8 @@ void TCP_Socket_send(TCP_SOCKET *server, unsigned char *buffer, int buffer_size)
  */
 void create_encoded_frame(TCP_SOCKET *server, unsigned char *buffer, int buffer_size, unsigned char packet_id)
 {
-    int number_of_packets = buffer_size / 256;
-    for (int i = 0; i < number_of_packets; i += 1)
+    int number_of_packets = buffer_size / 256, i;
+    for (i = 0; i < number_of_packets; i += 1)
     {
         server->buffer[0] = new_frame;
         server->buffer[1] = packet_id;
@@ -232,7 +276,7 @@ void create_encoded_frame(TCP_SOCKET *server, unsigned char *buffer, int buffer_
         server->buffer[5] = i & 0xFF;
         server->buffer[6] = 0;
         memcpy(&server->buffer[7], &buffer[i * 256], 256);
-        // TCP_SOCKET_send(server, server -> buffer, 263);
+        /* TCP_SOCKET_send(server, server -> buffer, 263);*/
     }
     server->buffer[0] = new_frame;
     server->buffer[1] = packet_id;
@@ -242,7 +286,7 @@ void create_encoded_frame(TCP_SOCKET *server, unsigned char *buffer, int buffer_
     server->buffer[5] = number_of_packets & 0xFF;
     server->buffer[6] = number_of_packets & 0XFF;
     memcpy(&server->buffer[7], &buffer[number_of_packets * 256], server->buffer[6]);
-    // TCP_SOCKET_send(server, server -> buffer, 7 + (number_of_packets & 0XFF));
+    /* TCP_SOCKET_send(server, server -> buffer, 7 + (number_of_packets & 0XFF));*/
 }
 
 /**
@@ -261,7 +305,7 @@ void create_auth_frame(TCP_SOCKET *server, long long int auth1, long long int au
     memcpy(server->buffer + 9, &auth2, 8);
     memcpy(server->buffer + 17, &auth3, 8);
     memcpy(server->buffer + 25, &auth4, 8);
-    // TCP_SOCKET_send(server, server -> buffer, 33);
+    /* TCP_SOCKET_send(server, server -> buffer, 33);*/
 }
 
 /*
@@ -273,15 +317,36 @@ void create_auth_frame(TCP_SOCKET *server, long long int auth1, long long int au
  *   If it's a scroll event, the data will be the scroll amount, the 5th byte is information about the operating system, if needed
  *   If it is a keyboard event, the first byte will be the key code, the 2nd byte is information about the key event, 3rd is information about the keyboard layout, 4th is information about the operating system
  */
-void create_other_frame(TCP_SOCKET *server, unsigned char frame_type, int data1, unsigned char data2)
+void create_other_frame(TCP_SOCKET *server, unsigned char frame_type, __int32_t data1, unsigned char data2)
 {
     server->buffer[0] = frame_type;
     memcpy(server->buffer + 1, &data1, 4);
     server->buffer[5] = data2;
-    // TCP_SOCKET_send(server, server -> buffer, 6);
+    /* TCP_SOCKET_send(server, server -> buffer, 6);*/
 }
 
-ssize_t receive_single_frame(TCP_SOCKET *sock, unsigned char *buf, __int32_t buf_size)
+ssize_t receive_single_frame(TCP_SOCKET *sock, __int32_t client_id, unsigned char *buf, __int32_t buf_size, __int32_t FLAGS)
 {
-    return recv(sock->client, buf, buf_size, 0);
+    return recv(sock->client[client_id], buf, buf_size, 0);
+}
+
+int receive_data(TCP_SOCKET *sock, __int32_t client_id, unsigned char* buffer, __int32_t size)
+{
+    int total_rec = 0;
+    while (1)
+    {
+        int rec = recv(sock -> client[client_id], sock -> buffer, sock -> buffer_len, 0);
+        if (total_rec == 0)
+        {
+            if (!(buffer[0] & new_frame))
+            {
+                return -1;
+            }
+        }
+        total_rec += recv;
+        if (rec == 0)
+        {
+            break;
+        }
+    }
 }
