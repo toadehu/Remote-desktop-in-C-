@@ -36,7 +36,7 @@ typedef struct video_decoder
 } video_decoder;
 
 
-//*
+/***/
 
 video_decoder* create_video_decoder(int width, int height) 
 {
@@ -85,7 +85,7 @@ video_decoder* create_video_decoder(int width, int height)
     return _decoder;
 }
 
-int decode_frame(video_decoder* _decoder, unsigned char* data, int size, bool special)//, (bool*)(unsigned char*) callee) 
+int decode_frame(video_decoder* _decoder, unsigned char* data, int size, bool special)/*, (bool*)(unsigned char*) callee) */
 {
     int ret;
 
@@ -99,7 +99,7 @@ int decode_frame(video_decoder* _decoder, unsigned char* data, int size, bool sp
         return -1;
     }
 
-    // Normally ret is 1
+    /* Normally ret is 1*/
     while (ret >= 0)
     {
         ret = avcodec_receive_frame(_decoder->codec_ctx, _decoder->frame);
@@ -136,15 +136,15 @@ void save_yuv420_buffer(const char *filename, unsigned char *buffer, int width, 
         return;
     }
 
-    // Write Y plane data
+    /* Write Y plane data*/
     int y_size = width * height;
     fwrite(buffer, 1, y_size, f);
 
-    // Write U plane data
+    /* Write U plane data*/
     int u_size = y_size / 4;
     fwrite(buffer + y_size, 1, u_size, f);
 
-    // Write V plane data
+    /* Write V plane data*/
     fwrite(buffer + y_size + u_size, 1, u_size, f);
 
     fclose(f);
