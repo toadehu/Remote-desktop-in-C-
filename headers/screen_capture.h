@@ -137,18 +137,18 @@ typedef struct SCREEN_CAPTURE
 
 void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_height)
 {
-    // Screenshots are operating system dependent sadly
-    // So this is needed
+    /* Screenshots are operating system dependent sadly*/
+    /* So this is needed*/
 
 #ifdef _WIN32
-    // Get the dimensions of the screen
+    /* Get the dimensions of the screen*/
     int width = GetSystemMetrics(SM_CXSCREEN);
     int height = GetSystemMetrics(SM_CYSCREEN);
 
     *_width = width;
     *_height = height;
 
-    // Create a buffer to hold the image data
+    /* Create a buffer to hold the image data*/
     if (*_size != width * height * 4)
     {
         if (*_buffer != NULL)
@@ -161,25 +161,25 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
 
     *_size = width * height * 4;
 
-    // Get the screen device context
+    /* Get the screen device context*/
     HDC hdcScreen = GetDC(NULL);
 
-    // Create a compatible device context and bitmap
+    /* Create a compatible device context and bitmap*/
     HDC hdcMemDC = CreateCompatibleDC(hdcScreen);
     HBITMAP hbmScreen = CreateCompatibleBitmap(hdcScreen, width, height);
 
-    // Select the bitmap into the device context
+    /* Select the bitmap into the device context*/
     HGDIOBJ oldObj = SelectObject(hdcMemDC, hbmScreen);
 
-    // Copy the screen contents into the bitmap
+    /* Copy the screen contents into the bitmap*/
     BitBlt(hdcMemDC, 0, 0, width, height, hdcScreen, 0, 0, SRCCOPY | CAPTUREBLT);
 
-    // Copy the bitmap data into the buffer
+    /* Copy the bitmap data into the buffer*/
     BITMAPINFOHEADER bi = {sizeof(BITMAPINFOHEADER), width, height, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
 
     GetDIBits(hdcScreen, hbmScreen, 0, height, *_buffer, (BITMAPINFO *)&bi, DIB_RGB_COLORS);
 
-    // Get the cursor position and dimensions
+    /* Get the cursor position and dimensions*/
     POINT cursorPos;
     GetCursorPos(&cursorPos);
     int cursorX = cursorPos.x;
@@ -187,7 +187,7 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     CURSORINFO cursorInfo = {sizeof(CURSORINFO)};
     GetCursorInfo(&cursorInfo);
 
-    // Capture the cursor if it is visible
+    /* Capture the cursor if it is visible*/
     if (cursorInfo.flags == CURSOR_SHOWING)
     {
         ICONINFO cursorIconInfo;
@@ -195,15 +195,15 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
         int cursorWidth = cursorIconInfo.xHotspot * 2;
         int cursorHeight = cursorIconInfo.yHotspot * 2;
 
-        // Create a bitmap for the cursor and select it into a device context
+        /* Create a bitmap for the cursor and select it into a device context*/
         HDC hdcCursor = CreateCompatibleDC(hdcScreen);
         HBITMAP hbmCursor = CreateBitmap(cursorWidth, cursorHeight, 1, 32, NULL);
         HGDIOBJ oldCursorObj = SelectObject(hdcCursor, hbmCursor);
 
-        // Draw the cursor into the bitmap
+        /* Draw the cursor into the bitmap*/
         DrawIconEx(hdcCursor, 0, 0, cursorInfo.hCursor, cursorWidth, cursorHeight, 0, NULL, DI_NORMAL);
 
-        // Copy the cursor bitmap into the screen bitmap at the cursor position
+        /* Copy the cursor bitmap into the screen bitmap at the cursor position*/
         BITMAP bmCursor;
         GetObject(hbmCursor, sizeof(BITMAP), &bmCursor);
         BITMAPINFO bmi = {sizeof(BITMAPINFOHEADER), bmCursor.bmWidth, bmCursor.bmHeight, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
@@ -221,21 +221,21 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
                 {
                     int cursorIndex = y * bmCursor.bmWidthBytes + x * 4;
                     int screenIndex = screenY * width * 4 + screenX * 4;
-                    (*_buffer)[screenIndex] = cursorBits[cursorIndex + 2];     // Red channel
-                    (*_buffer)[screenIndex + 1] = cursorBits[cursorIndex + 1]; // Green channel
-                    (*_buffer)[screenIndex + 2] = cursorBits[cursorIndex];     // Blue channel
-                    (*_buffer)[screenIndex + 3] = cursorBits[cursorIndex + 3]; // Alpha channel
+                    (*_buffer)[screenIndex] = cursorBits[cursorIndex + 2];     /* Red channel*/
+                    (*_buffer)[screenIndex + 1] = cursorBits[cursorIndex + 1]; /* Green channel*/
+                    (*_buffer)[screenIndex + 2] = cursorBits[cursorIndex];     /* Blue channel*/
+                    (*_buffer)[screenIndex + 3] = cursorBits[cursorIndex + 3]; /* Alpha channel*/
                 }
             }
         }
-        // Clean up the cursor bitmap and device context
+        /* Clean up the cursor bitmap and device context*/
         free(cursorBits);
         SelectObject(hdcCursor, oldCursorObj);
         DeleteObject(hbmCursor);
         DeleteDC(hdcCursor);
     }
 
-    // Clean up the screen bitmap and device contexts
+    /* Clean up the screen bitmap and device contexts*/
     SelectObject(hdcMemDC, oldObj);
     DeleteObject(hbmScreen);
     DeleteDC(hdcMemDC);
@@ -244,7 +244,7 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
 #elif __linux__
 
 #ifdef HAVE_X11
-    // Connect to the X server
+    /* Connect to the X server*/
     Display* display = XOpenDisplay(NULL);
     Window root = DefaultRootWindow(display);
 
@@ -312,7 +312,7 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     wl_output_add_listener(wl_data.output, &output_listener, &wl_data);
     wl_display_roundtrip(display);
 
-    int stride = wl_data.width * 4; // Assuming ARGB8888 format
+    int stride = wl_data.width * 4; /* Assuming ARGB8888 format*/
     int size = stride * wl_data.height;
 
     int fd = memfd_create("screenshot", 0);
@@ -329,7 +329,7 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     wl_surface_commit(surface);
     wl_display_roundtrip(display);
 
-    // Copy the screenshot data to an unsigned char* buffer
+    /* Copy the screenshot data to an unsigned char* buffer*/
     if ((*_size) != size)
     {
         if (*_buffer != NULL)
@@ -338,19 +338,19 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
         }
        *_buffer = (unsigned char *)__aligned_malloc(size, 16);
     }
-    //printf("Top 10 printf before segfault\n");
+    /*printf("Top 10 printf before segfault\n");*/
     memcpy(*_buffer, data, size);
 
 #ifdef _DEBUG
     printf("Size of screenshot: %d\n", size);
 #endif
 
-    //copy the size to our variable, width and height also
+    /*copy the size to our variable, width and height also*/
     (*_size) = size;
     *_width = wl_data.width;
     *_height = wl_data.height;
 
-    // Clean up
+    /* Clean up*/
     munmap(data, size);
     close(fd);
     wl_buffer_destroy(buffer);
