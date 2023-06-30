@@ -7,7 +7,7 @@
 #include <emmintrin.h>
 #include <immintrin.h>
 
-//I think this does NOT work
+/*I think this does NOT work*/
 void ARGBToYUV420_SSE2 (unsigned char **argb, int width, int height, unsigned char **yuv) {
     int plane_size = width * height;
     unsigned char *y_plane = *yuv;
@@ -23,43 +23,44 @@ void ARGBToYUV420_SSE2 (unsigned char **argb, int width, int height, unsigned ch
     const __m128i y_offset = _mm_set1_epi16(16);
     const __m128i uv_offset = _mm_set1_epi16(128);
 
-    for (int j = 0; j < height; j+=1) {
-        //printf("Current index:%d\n", argb_index);
-        for (int i = 0; i < width; i += 8) { // Process 8 pixels per iteration
-            //printf("precrisis, addres where segfault happens is:%d or it may be:%d\n", argb_index + (i + 0), argb_index + (i + 4));
-            //printf("actual offset should be:%d, actual size: %d\n", j * width * 4 + i + 4, width * height * 4);
+    int i,j;
+    for (j = 0; j < height; j+=1) {
+        /*printf("Current index:%d\n", argb_index);*/
+        for (i = 0; i < width; i += 8) { /* Process 8 pixels per iteration*/
+            /*printf("precrisis, addres where segfault happens is:%d or it may be:%d\n", argb_index + (i + 0), argb_index + (i + 4));*/
+            /*printf("actual offset should be:%d, actual size: %d\n", j * width * 4 + i + 4, width * height * 4);*/
             __m128i argb0 = _mm_lddqu_si128((__m128i *)(*argb + argb_index + i));
             __m128i argb1 = _mm_lddqu_si128((__m128i *)(*argb + argb_index +  i + 4));
 
-            // Shuffle RGB values
+            /* Shuffle RGB values*/
             __m128i b0g0r0a0 = _mm_shuffle_epi8(argb0, shuffle_mask);
             __m128i b1g1r1a1 = _mm_shuffle_epi8(argb1, shuffle_mask);
 
-            // Calculate Y, U, V values
+            /* Calculate Y, U, V values*/
             __m128i y0 = _mm_srai_epi16(_mm_add_epi16(_mm_madd_epi16(b0g0r0a0, y_coeffs), y_offset), 8);
             __m128i y1 = _mm_srai_epi16(_mm_add_epi16(_mm_madd_epi16(b1g1r1a1, y_coeffs), y_offset), 8);
             __m128i u = _mm_srai_epi16(_mm_add_epi16(_mm_madd_epi16(b0g0r0a0, u_coeffs), uv_offset), 8);
             __m128i v = _mm_srai_epi16(_mm_add_epi16(_mm_madd_epi16(b0g0r0a0, v_coeffs), uv_offset), 8);
 
-            // Pack Y values and store them
+            /* Pack Y values and store them*/
             _mm_storeu_si128((__m128i *)(y_plane + i), _mm_packus_epi16(y0, y1));
 
-            // Handle chroma subsampling
+            /* Handle chroma subsampling*/
             if (j % 2 == 0 && i % 16 == 0) {
                 u = _mm_packus_epi16(u, u);
                 v = _mm_packus_epi16(v, v);
 
-                // Average U and V values for subsampling
+                /* Average U and V values for subsampling*/
                 __m128i uv_avg = _mm_avg_epu8(u, _mm_shuffle_epi32(u, _MM_SHUFFLE(1, 0, 3, 2)));
                 __m128i vv_avg = _mm_avg_epu8(v, _mm_shuffle_epi32(v, _MM_SHUFFLE(1, 0, 3, 2)));
 
-                // Store U and V values
+                /* Store U and V values*/
                 _mm_storel_epi64((__m128i *)(u_plane + (i >> 1)), uv_avg);
                 _mm_storel_epi64((__m128i *)(v_plane + (i >> 1)), vv_avg);
             }
         }
         argb_index += (width * 4);
-        //*argb += (width << 1);
+        /**argb += (width << 1);*/
         y_plane += width;
         if (!(j&1)) {
             u_plane += (width / 2);
@@ -86,49 +87,50 @@ void ARGBToYUV420_AVX2(unsigned char **argb, int width, int height, unsigned cha
     const __m256i y_offset = _mm256_set1_epi16(16);
     const __m256i uv_offset = _mm256_set1_epi16(128);
 
-    // Set the lower (0) and upper (255) bounds
+    /* Set the lower (0) and upper (255) bounds*/
     __m256i lower_bound = _mm256_set1_epi8(0);
     __m256i upper_bound = _mm256_set1_epi8(255);
 
-    for (int j = 0; j < height; j++) {
-        for (int i = 0; i < width; i += 16) { // Process 16 pixels per iteration
+    int i,j;
+    for (j = 0; j < height; j++) {
+        for (i = 0; i < width; i += 16) { /* Process 16 pixels per iteration*/
             __m256i argb0 = _mm256_lddqu_si256((__m256i *)(*argb + argb_index + (i + 0)));
             __m256i argb1 = _mm256_lddqu_si256((__m256i *)(*argb + argb_index + (i + 8)));
 
-            // Shuffle RGB values
+            /* Shuffle RGB values*/
             __m256i b0g0r0a0 = _mm256_shuffle_epi8(argb0, shuffle_mask);
             __m256i b1g1r1a1 = _mm256_shuffle_epi8(argb1, shuffle_mask);
 
-            // Calculate Y, U, V values
+            /* Calculate Y, U, V values*/
              __m256i y0 = _mm256_srai_epi16(_mm256_add_epi16(_mm256_madd_epi16(b0g0r0a0, y_coeffs), y_offset), 8);
             __m256i y1 = _mm256_srai_epi16(_mm256_add_epi16(_mm256_madd_epi16(b1g1r1a1, y_coeffs), y_offset), 8);
             __m256i u = _mm256_srai_epi16(_mm256_add_epi16(_mm256_madd_epi16(b0g0r0a0, u_coeffs), uv_offset), 8);
             __m256i v = _mm256_srai_epi16(_mm256_add_epi16(_mm256_madd_epi16(b0g0r0a0, v_coeffs), uv_offset), 8);
 
 
-            // Clamp the packed_y_values between 0 and 255
-            y0= _mm256_max_epu8(y0, lower_bound); // Ensure values are not below 0
-            y0 = _mm256_min_epu8(y0, upper_bound); // Ensure values are not above 255
-            y1= _mm256_max_epu8(y1, lower_bound); // Ensure values are not below 0
-            y1 = _mm256_min_epu8(y1, upper_bound); // Ensure values are not above 255
-            u = _mm256_max_epu8(u, lower_bound); // Ensure values are not below 0
-            u = _mm256_min_epu8(u, upper_bound); // Ensure values are not above 255
-            v= _mm256_max_epu8(v, lower_bound); // Ensure values are not below 0
-            v = _mm256_min_epu8(v, upper_bound); // Ensure values are not above 255
+            /* Clamp the packed_y_values between 0 and 255*/
+            y0= _mm256_max_epu8(y0, lower_bound); /* Ensure values are not below 0*/
+            y0 = _mm256_min_epu8(y0, upper_bound); /* Ensure values are not above 255*/
+            y1= _mm256_max_epu8(y1, lower_bound); /* Ensure values are not below 0*/
+            y1 = _mm256_min_epu8(y1, upper_bound); /* Ensure values are not above 255*/
+            u = _mm256_max_epu8(u, lower_bound); /* Ensure values are not below 0*/
+            u = _mm256_min_epu8(u, upper_bound); /* Ensure values are not above 255*/
+            v= _mm256_max_epu8(v, lower_bound); /* Ensure values are not below 0*/
+            v = _mm256_min_epu8(v, upper_bound); /* Ensure values are not above 255*/
 
-            // Pack Y values and store them
+            /* Pack Y values and store them*/
             _mm256_storeu_si256((__m256i *)(y_plane + i), _mm256_packus_epi16(y0, y1));
 
-            // Handle chroma subsampling
+            /* Handle chroma subsampling*/
             if (j % 2 == 0 && i % 32 == 0) {
                 u = _mm256_packus_epi16(u, u);
                 v = _mm256_packus_epi16(v, v);
 
-                // Average U and V values for subsampling
+                /* Average U and V values for subsampling*/
                 __m256i uv_avg = _mm256_avg_epu8(u, _mm256_permute4x64_epi64(u, _MM_SHUFFLE(1, 0, 3, 2)));
                 __m256i vv_avg = _mm256_avg_epu8(v, _mm256_permute4x64_epi64(v, _MM_SHUFFLE(1, 0, 3, 2)));
 
-                // Store U and V values
+                /* Store U and V values*/
                 _mm256_storeu2_m128i((__m128i *)(v_plane + (i >> 1)), (__m128i *)(u_plane + (i >> 1)), _mm256_unpacklo_epi64(uv_avg, vv_avg));
             }
         }
@@ -142,7 +144,7 @@ void ARGBToYUV420_AVX2(unsigned char **argb, int width, int height, unsigned cha
 }
 
 #elif __arm__
-//to do
+/*to do*/
 #endif
 
 typedef struct video_encoder
@@ -162,16 +164,18 @@ void ARGBToYUV420(unsigned char **argb, int width, int height, unsigned char **y
     int argb_index = 0;
     int y_index = 0, uv_index = 0;
 
-#ifdef _____HAVE_X11 //this means we have a bit depth of 24 so there is a need for new code
-    for (int j = 0; j < height; j+=1) {
-        for (int i = 0; i < width; i+=1) 
+    int i,j;
+
+#ifdef _____HAVE_X11 /*this means we have a bit depth of 24 so there is a need for new code*/
+    for (j = 0; j < height; j+=1) {
+        for (i = 0; i < width; i+=1) 
         {
             int b = *(*argb + argb_index);
             argb_index+=1;
             int g = *(*argb + argb_index);
             argb_index+=1;
             int r = *(*argb + argb_index);
-            argb_index+=1; //Here there is no alpha channel
+            argb_index+=1; /*Here there is no alpha channel*/
 
             int y = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
             int u = ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128;
@@ -188,14 +192,14 @@ void ARGBToYUV420(unsigned char **argb, int width, int height, unsigned char **y
         }
     }
 #else
-    for (int j = 0; j < height; j+=1) {
-        for (int i = 0; i < width; i+=1) {
+    for (j = 0; j < height; j+=1) {
+        for (i = 0; i < width; i+=1) {
             int b = *(*argb + argb_index);
             argb_index+=1;
             int g = *(*argb + argb_index);
             argb_index+=1;
             int r = *(*argb + argb_index);
-            argb_index+=2; // Skip the alpha channel
+            argb_index+=2; /* Skip the alpha channel*/
 
             int y = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
             int u = ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128;
@@ -214,7 +218,7 @@ void ARGBToYUV420(unsigned char **argb, int width, int height, unsigned char **y
 
 #endif
 
-    //printf("fin:%d\n", argb_index);
+    /*printf("fin:%d\n", argb_index);*/
 }
 
 void YUV420ToARGB(unsigned char **yuv, int width, int height, unsigned char ** argb, int bit_depth)
@@ -224,8 +228,9 @@ void YUV420ToARGB(unsigned char **yuv, int width, int height, unsigned char ** a
     unsigned char* y_plane = *yuv;
     unsigned char* u_plane = *yuv + plane_size;
     unsigned char* v_plane = *yuv + plane_size + (plane_size>>2);
-    for (int j = 0; j > height; j+=1){
-        for (int i = 0; i < width; i+=1)
+    int i,j;
+    for (j = 0; j > height; j+=1){
+        for (i = 0; i < width; i+=1)
         {
             int y = y_plane[j * width + i];
             int u = u_plane[(j / 2) * (width / 2) + (i / 2)];
@@ -246,20 +251,21 @@ void YUV420ToARGB(unsigned char **yuv, int width, int height, unsigned char ** a
             (*argb)[argb_index++] = b;
             (*argb)[argb_index++] = g;
             (*argb)[argb_index++] = r;
-            (*argb)[argb_index++] = 255; // Set the alpha channel to 255 (opaque)
+            (*argb)[argb_index++] = 255; /* Set the alpha channel to 255 (opaque)*/
         }
     }
 }
 
 void separate_channels_inplace(unsigned char *buffer, int num_pixels) 
 {
-    for (int i = 0; i < num_pixels; i++) 
+    int i;
+    for (i = 0; i < num_pixels; i++) 
     {
-        // swap R and A
+        /* swap R and A*/
         unsigned char tmp = buffer[4*i];
         buffer[4*i] = buffer[4*i+3];
         buffer[4*i+3] = tmp;
-        // swap G and B
+        /* swap G and B*/
         tmp = buffer[4*i+1];
         buffer[4*i+1] = buffer[4*i+2];
         buffer[4*i+2] = tmp;
@@ -289,24 +295,24 @@ int encode_frame(video_encoder* _encoder, unsigned char* yuv420_buffer)
     x264_picture_init(&pic_in);
     x264_picture_alloc(&pic_in, _encoder->param.i_csp, _encoder->param.i_width, _encoder->param.i_height);
 
-    // Copy the YUV420 buffer data to the pic_in structure.
+    /* Copy the YUV420 buffer data to the pic_in structure.*/
     int plane_size_y = _encoder->param.i_width * _encoder->param.i_height;
     int plane_size_uv = plane_size_y / 4;
     memcpy(pic_in.img.plane[0], yuv420_buffer, plane_size_y);
     memcpy(pic_in.img.plane[1], yuv420_buffer + plane_size_y, plane_size_uv);
     memcpy(pic_in.img.plane[2], yuv420_buffer + plane_size_y + plane_size_uv, plane_size_uv);
 
-    // Set the frame number.
+    /* Set the frame number.*/
     pic_in.i_pts = _encoder -> frame_number;
 
     _encoder -> frame_number++;
 
-    // Encode the frame.
+    /* Encode the frame.*/
     x264_nal_t* nals;
     int i_nals;
     int frame_size = x264_encoder_encode(_encoder->encoder, &nals, &i_nals, &pic_in, &pic_out);
 
-    // Clean up.
+    /* Clean up.*/
     x264_picture_clean(&pic_in);
 
     return frame_size;
@@ -511,36 +517,37 @@ void resize_image_bilinear(const unsigned char *src, unsigned char **dst, int sr
 
     if (0.9 <= x_ratio && x_ratio <= 1.1 && 0.9 <= y_ratio && y_ratio <= 1.1)
     {
-        //memcpy(*dst, src, dst_width * dst_height);
-        //return;
+        /*memcpy(*dst, src, dst_width * dst_height);*/
+        /*return;*/
     }
 
-    for (int dst_y = 0; dst_y < dst_height; dst_y++)
+    int dst_y, dst_x, x, channel;
+    for (dst_y = 0; dst_y < dst_height; dst_y++)
     {
-        //__builtin_prefetch(&src[((int)((dst_y + 1) * y_ratio) * src_width) * channels]);
+        /*__builtin_prefetch(&src[((int)((dst_y + 1) * y_ratio) * src_width) * channels]);*/
         
-        for (int dst_x = 0; dst_x < dst_width; dst_x+=8)
+        for (dst_x = 0; dst_x < dst_width; dst_x+=8)
         {
-            for (int x = 0; x < 8; x++)
+            for (x = 0; x < 8; x++)
             {
                 float src_x = (x + dst_x) * x_ratio;
                 float src_y = dst_y * y_ratio;
                                 
-                //__builtin_prefetch(&src[((int)(src_y + y_ratio) * src_width + (int)(src_x + x_ratio)) * channels]);
+                /*__builtin_prefetch(&src[((int)(src_y + y_ratio) * src_width + (int)(src_x + x_ratio)) * channels]);*/
 
-                for (int channel = 0; channel < channels; channel++)
+                for (channel = 0; channel < channels; channel++)
                 {
-                    //__builtin_prefetch(&src[((int)(src_y + y_ratio) * src_width + (int)(src_x + x_ratio)) * channels]);
+                    /*__builtin_prefetch(&src[((int)(src_y + y_ratio) * src_width + (int)(src_x + x_ratio)) * channels]);*/
                     (*dst)[(dst_y * dst_width + x + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
                 }
             }
         }
-        for (int dst_x = dst_width & ~7; dst_x < dst_width; dst_x++)
+        for (dst_x = dst_width & ~7; dst_x < dst_width; dst_x++)
         {
             float src_x = dst_x * x_ratio;
             float src_y = dst_y * y_ratio;
 
-            for (int channel = 0; channel < channels; channel++)
+            for (channel = 0; channel < channels; channel++)
             {
                 (*dst)[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
             }
@@ -566,27 +573,29 @@ void* thread_func(void *arg)
     float x_ratio = (float)(data->src_width) / (float)data->dst_width;
     float y_ratio = (float)(data->src_height) / (float)data->dst_height;
 
-    for (int dst_y = data->start_y; dst_y < data->end_y; dst_y++)
+    int dst_y, dst_x, x, channel;
+
+    for (dst_y = data->start_y; dst_y < data->end_y; dst_y++)
     {
-        for (int dst_x = 0; dst_x < data->dst_width; dst_x+=8)
+        for (dst_x = 0; dst_x < data->dst_width; dst_x+=8)
         {
-            for (int x = 0; x < 8; x++)
+            for (x = 0; x < 8; x++)
             {
                 float src_x = (x + dst_x) * x_ratio;
                 float src_y = dst_y * y_ratio;
 
-                for (int channel = 0; channel < data->channels; channel++)
+                for (channel = 0; channel < data->channels; channel++)
                 {
                     (*(data->dst))[(dst_y * data->dst_width + x + dst_x) * data->channels + channel] = bilinear_interpolate(data->src, src_x, src_y, data->src_width, data->src_height, data->channels, channel);
                 }
             }
         }
-        for (int dst_x = data->dst_width & ~7; dst_x < data->dst_width; dst_x++)
+        for (dst_x = data->dst_width & ~7; dst_x < data->dst_width; dst_x++)
         {
             float src_x = dst_x * x_ratio;
             float src_y = dst_y * y_ratio;
 
-            for (int channel = 0; channel < data->channels; channel++)
+            for (channel = 0; channel < data->channels; channel++)
             {
                 (*(data->dst))[(dst_y * data->dst_width + dst_x) * data->channels + channel] = bilinear_interpolate(data->src, src_x, src_y, data->src_width, data->src_height, data->channels, channel);
             }
@@ -619,7 +628,9 @@ void resize_image_bilinear_multithread(const unsigned char *src, unsigned char *
     thread_data_t thread_data[NUM_THREADS];
     int num_rows_per_thread = dst_height / NUM_THREADS;
 
-    for (int i = 0; i < NUM_THREADS; i++)
+    int i;
+
+    for (i = 0; i < NUM_THREADS; i++)
     {
         thread_data[i].src = src;
         thread_data[i].dst = dst;
@@ -638,7 +649,7 @@ void resize_image_bilinear_multithread(const unsigned char *src, unsigned char *
         }
     }
 
-    for (int i = 0; i < NUM_THREADS; ++i)
+    for (i = 0; i < NUM_THREADS; ++i)
     {
         if (pthread_join(threads[i], NULL)) {
             fprintf(stderr, "Error joining thread\n");
@@ -655,9 +666,11 @@ void resize_image_nearest_neighbor(const unsigned char *src, unsigned char *dst,
     float x_ratio = (float)src_width / (float)dst_width;
     float y_ratio = (float)src_height / (float)dst_height;
 
-    for (int dst_y = 0; dst_y < dst_height; dst_y++)
+    int dst_y, dst_x;
+
+    for (dst_y = 0; dst_y < dst_height; dst_y++)
     {
-        for (int dst_x = 0; dst_x < dst_width; dst_x++)
+        for (dst_x = 0; dst_x < dst_width; dst_x++)
         {
             int src_x = (int)(dst_x * x_ratio);
             int src_y = (int)(dst_y * y_ratio);
