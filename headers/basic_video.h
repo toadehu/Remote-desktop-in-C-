@@ -53,7 +53,8 @@ int rle_first_pass(unsigned char* original, basic_video_enc* video)
     {
         cval = original[0];
     }
-    for (int i = 0; i < video -> image_size; i+=1)
+    int i;
+    for (i = 0; i < video -> image_size; i+=1)
     {
         cval = (original[i] != video->prev_image[i]) ? original[i] : 0;
         if (cval != comp)
@@ -90,7 +91,8 @@ int rle_second_pass(basic_video_enc* video)
 {
     video -> rle_size2 = 0;
     unsigned char curmatch = 0, comp = video -> rle_image_size[0];
-    for (int i = 0; i < video -> rle_size1; i+=1)
+    int i;
+    for (i = 0; i < video -> rle_size1; i+=1)
     {
         if (comp != video -> rle_image_size[i])
         {
@@ -138,7 +140,7 @@ int rle_second_pass(basic_video_enc* video)
         video -> rle_size2 += 1;
     }
     int cur_sum = 0;
-    for (int i = 0; i < video -> rle_size2; i+=1)
+    for (i = 0; i < video -> rle_size2; i+=1)
     {
         video -> rle_image_size[i] = video -> rle_image_size[cur_sum];
         cur_sum += video -> rle_image_pass2[i];
@@ -195,8 +197,9 @@ basic_video_dec* create_basic_video_dec(int width, int height, int bitrate, int 
 
 void rle_first_decode(unsigned char* data, int size, basic_video_dec* video)
 {
+    int i;
     video -> rle_size2 = 0;
-    for (int i = 0; i < size; i+=1)
+    for (i = 0; i < size; i+=1)
     {
         while (data[i + size] > 0)
         {
@@ -209,8 +212,9 @@ void rle_first_decode(unsigned char* data, int size, basic_video_dec* video)
 
 void rle_second_decode(unsigned char* data, basic_video_dec* video)
 {
+    int i;
     video -> rle_size1 = 0;
-    for (int i = 0; i < video -> rle_size2; i+=1)
+    for (i = 0; i < video -> rle_size2; i+=1)
     {
         while (video -> rle_image_size[i] > 0)
         {
