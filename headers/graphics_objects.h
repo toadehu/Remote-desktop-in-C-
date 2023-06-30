@@ -41,7 +41,7 @@ typedef struct image_element
     SDL_Renderer* renderer;
     bool is_visible;
     
-    //This function is used to update the image's position, the second parameter is supposed to be the position of the parent window
+    /*This function is used to update the image's position, the second parameter is supposed to be the position of the parent window*/
     void (*update_rect)(SDL_Rect*, SDL_Rect);
 } image_element;
 
@@ -55,58 +55,58 @@ image_element* create_new_image_element(SDL_Renderer* renderer, char* Img_path, 
 
     if (Img_path != NULL)
     {
-        //Load the image as a surface
+        /*Load the image as a surface*/
         SDL_Surface *surface = IMG_Load(Img_path);
 
-        //Load the surface into the graphics hardware's memory
+        /*Load the surface into the graphics hardware's memory*/
         new_image -> texture = SDL_CreateTextureFromSurface(renderer, surface);
 
-        //Load the renderer pointer
+        /*Load the renderer pointer*/
         new_image -> renderer = renderer;
 
-        //Free the surface from main memory
+        /*Free the surface from main memory*/
         SDL_FreeSurface(surface);
     }
 
     new_image -> is_visible = true;
 
-    //Set the update_rect function
+    /*Set the update_rect function*/
     new_image -> update_rect = update_rect_func;
 
-    //printf("%p: pointer \n", new_image);
+    /*printf("%p: pointer \n", new_image);*/
 
     return new_image;
 }
 
 void image_element_update_graphics(image_element* img, char* data, int type_of_image)
 {
-    //if (img -> texture)
-    //{
-        //Destroy the old texture
+    /*if (img -> texture)*/
+    /*{*/
+        /*Destroy the old texture*/
         SDL_DestroyTexture(img -> texture);
-    //}
+    /*}*/
 
     SDL_Surface* surface = NULL;
     if (type_of_image == IMAGE_FROM_FILE)
     {
-        //Load the image as a surface
+        /*Load the image as a surface*/
         surface = IMG_Load(data);
 
-        //Load the surface into the graphics hardware's memory
+        /*Load the surface into the graphics hardware's memory*/
         img -> texture = SDL_CreateTextureFromSurface(img -> renderer, surface);
 
-        //Free the surface from main memory
+        /*Free the surface from main memory*/
         SDL_FreeSurface(surface);
         return;
     }
     else if (type_of_image == IMAGE_FROM_RGB24)
     {
-        //Load the image as a surface
+        /*Load the image as a surface*/
         surface = SDL_CreateRGBSurfaceFrom(data, img -> rect.w, img -> rect.h, 24, img -> rect.w * 3, 0, 0, 0, 0);
     }
     else if (type_of_image == IMAGE_FROM_RGB32)
     {
-        //Load the image as a surface
+        /*Load the image as a surface*/
         surface = SDL_CreateRGBSurfaceFrom(data, img -> rect.w, img -> rect.h, 32, img -> rect.w * 4, 0, 0, 0, 0);
     }
     if (surface != NULL)    
