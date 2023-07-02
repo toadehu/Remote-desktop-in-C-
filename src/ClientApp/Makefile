@@ -8,7 +8,7 @@ else
 endif
 
 #set the compiler flags
-CFLAGS := -ggdb3 -std=c11 -Wall -I../hdr
+CFLAGS := -ggdb3 -std=c89 -Wall -I../hdr
 
 
 ifeq ($(version),RASPI)
@@ -23,8 +23,10 @@ endif
 ifeq ($(version),WIN)
 	CFLAGS += -DmainCRTStartup
 	LDFLAGS += -lmingw32 -lSDL2main -lSDL2 -lSDL2_image
+
 else ifeq ($(version),DEBUG)
 	CFLAGS += -D_DEBUG=1 -g -msse2 -mavx2 -march=native -DHAVE_X86
+
 else ifndef version
 	CFLAGS += -O3 -msse2 -mavx2 -march=native -DHAVE_X86
 endif
