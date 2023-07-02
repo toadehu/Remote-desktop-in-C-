@@ -8,7 +8,7 @@ else
 endif
 
 #set the compiler flags
-CFLAGS := -ggdb3 -std=c11 -Wall -I./hdr
+CFLAGS := -ggdb3 -std=c89 -Wall -I./hdr
 
 
 ifeq ($(version),RASPI)
@@ -42,7 +42,7 @@ else
 endif
 
 #set the linker flags
-LDFLAGS := $(shell pkg-config --libs sdl2 SDL2_image --libs wayland-client) -lm -lSDL2_ttf -lx264 -lxcb -lxcb-image -lX11 -msse2 -mavx2 -march=native -lavcodec -lavutil -lavformat
+LDFLAGS := $(shell pkg-config --libs sdl2 SDL2_image --libs wayland-client) -lm -lSDL2_ttf -lx264 -lxcb -lxcb-image -lX11 -msse2 -mavx2 -march=native
 
 #set ldlibs
 #LDLIBS += -lyuv
