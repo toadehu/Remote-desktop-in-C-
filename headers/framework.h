@@ -12,3 +12,10 @@
 #include "screen_capture.h"
 #include "video_encoder.h"
 #include "basic_video.h"
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+
+#ifdef _WIN32
+#pragma comment(lib, "msvcrt.lib")
+#endif
