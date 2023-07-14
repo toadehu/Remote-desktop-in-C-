@@ -1,40 +1,40 @@
 #pragma once
 
-#include "framework.h"
+#include "graphics_objects.h"
 
 typedef struct _GRAPHICS_RENDERER 
 {
-    //The window that will be rendered on
+    /*The window that will be rendered on*/
     SDL_Window* window;
 
-    //The renderer that will be used to render on the window
+    /*The renderer that will be used to render on the window*/
     SDL_Renderer* renderer;
 
-    //The rectangle for the window size
+    /*The rectangle for the window size*/
     SDL_Rect win_rect;
     
-    //the frames per second
+    /*the frames per second*/
     Uint32 ms;
 
-    //The first array is for background images, the second for buttons, third for text or popups
+    /*The first array is for background images, the second for buttons, third for text or popups*/
     image_element** images[3];
 
-    //How many images are in the array
+    /*How many images are in the array*/
     int no_images[3];
 
-    //The size of the arrays
+    /*The size of the arrays*/
     int images_size[3];
 
-    //The array of buttons
+    /*The array of buttons*/
     button_element** buttons[2];
 
-    //How many buttons are in the array
+    /*How many buttons are in the array*/
     int no_buttons[2];
 
-    //The size of the arrays
+    /*The size of the arrays*/
     int buttons_size[2];
 
-    //Is it visibe
+    /*Is it visibe*/
     bool* is_button_visible[2];
 
 }GRAPHICS_RENDERER;
@@ -42,7 +42,7 @@ typedef struct _GRAPHICS_RENDERER
 void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect)
 {
     backg_rect -> w = window_rect.w;
-    backg_rect -> h = window_rect.h;
+    backg_rect -> h = window_rect.h / RATIO;
     backg_rect -> x = (window_rect.w - backg_rect -> w) / 2;
     backg_rect -> y = (window_rect.h - backg_rect -> h) / 2;
 }
@@ -53,65 +53,71 @@ void update_rectangle_size(SDL_Rect* rect, int w, int h)
     rect -> h = h;
 }
 
-GRAPHICS_RENDERER* create_graphics_renderer()
+GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, int flags, Uint32 render_flags)
 {
     GRAPHICS_RENDERER* graphics_renderer = (GRAPHICS_RENDERER*)malloc(sizeof(GRAPHICS_RENDERER));
     memset(graphics_renderer, 0, sizeof(GRAPHICS_RENDERER));
 
-	graphics_renderer -> window = SDL_CreateWindow("Casa Manelelor",
+	graphics_renderer -> window = SDL_CreateWindow(Name,
 						SDL_WINDOWPOS_CENTERED,
 						SDL_WINDOWPOS_CENTERED,
-						640, 360, SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+						w, h, flags);
 
-	//make the rendering hardware accelerated
-	Uint32 render_flags = SDL_RENDERER_ACCELERATED;
-
-	//create a renderer
+	/*create a renderer*/
 	graphics_renderer ->  renderer = SDL_CreateRenderer(graphics_renderer -> window, -1, render_flags);
 
-    image_element* background = create_new_image_element(graphics_renderer -> renderer, "img.jpg", 0, 0, 0, 0, update_background_rectangle);
+    image_element* background = create_new_image_element(graphics_renderer -> renderer, (char*)"img.jpg", 0, 0, 0, 0, update_background_rectangle);
     
     graphics_renderer -> images[0] = (image_element**)malloc(sizeof(image_element*));
 
     graphics_renderer -> images[0][0] = background;
 
-    //Set the correct number of images for the background, this should always be 1
+    /*Set the correct number of images for the background, this should always be 1*/
     graphics_renderer -> no_images[0] = 1;
     graphics_renderer -> images_size[0] = 1;
 
-    //Set the correct number of images for the buttons and overlays, this should be 0 initially
+    /*Set the correct number of images for the buttons and overlays, this should be 0 initially*/
     graphics_renderer -> no_images[1] = 0;
     graphics_renderer -> images_size[1] = 0;
     graphics_renderer -> no_images[2] = 0;
     graphics_renderer -> images_size[2] = 0;
 
-	//Get the window size for the rendering the image
+	/*Get the window size for the rendering the image*/
 	SDL_GetWindowSize(graphics_renderer -> window, &graphics_renderer -> win_rect.w, &graphics_renderer -> win_rect.h);
 
-	//set position
+	/*set position*/
     graphics_renderer -> images[0][0] -> update_rect(&graphics_renderer -> images[0][0] -> rect, graphics_renderer -> win_rect);
 
-    //set the delay for 24ms
+    /*set the delay for 24ms*/
     graphics_renderer -> ms = 1000 / 24;
 
     return graphics_renderer;
 }
 
-// Update the sizes of the images
+/*
+*   Wrapper function to update the background image according to the flags (which are taken from graphics_objects.h)
+*/
+void renderer_update_bg(GRAPHICS_RENDERER* renderer, char* data, int flags)
+{
+    image_element_update_graphics(renderer -> images[0][0], data, flags);
+}
+
+/* Update the sizes of the images*/
 void renderer_update_rects(GRAPHICS_RENDERER* renderer)
 {
-    for (int i = 0; i < 3; i+=1)
+    int i,j;
+    for (i = 0; i < 3; i+=1)
     {
-        for (int j = 0; j < renderer -> no_images[i]; j+=1)
+        for (j = 0; j < renderer -> no_images[i]; j+=1)
         {
-            //update_rectangle_size(&renderer -> images[i][j] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);
+            /*update_rectangle_size(&renderer -> images[i][j] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);*/
             renderer -> images[i][j] -> update_rect(&renderer -> images[i][j] -> rect, renderer -> win_rect);
         }
     }
 
-    for (int i = 0; i < 2; ++i)
+    for (i = 0; i < 2; ++i)
     {
-        for (int j = 0; j < renderer -> no_buttons[i]; j+=1)
+        for (j = 0; j < renderer -> no_buttons[i]; j+=1)
         {
             renderer -> buttons[i][j] -> image_not_clicked -> update_rect(&renderer -> buttons[i][j] -> image_not_clicked -> rect, renderer -> win_rect);
             renderer -> buttons[i][j] -> image_clicked -> update_rect(&renderer -> buttons[i][j] -> image_clicked -> rect, renderer -> win_rect);
@@ -119,21 +125,22 @@ void renderer_update_rects(GRAPHICS_RENDERER* renderer)
     }
 }
 
-// Draw the images
+/* Draw the images*/
 void renderer_draw_images(GRAPHICS_RENDERER* renderer)
 {
-    for (int i = 0; i < 3; i+=1)
+    int i,j;
+    for (i = 0; i < 3; i+=1)
     {
-        for (int j = 0; j < renderer -> no_images[i]; j+=1)
+        for (j = 0; j < renderer -> no_images[i]; j+=1)
         {
             if (renderer -> images[i][j] -> is_visible == true)
                 SDL_RenderCopy(renderer -> renderer, renderer -> images[i][j] -> texture, NULL, &renderer -> images[i][j] -> rect);
         }
     }
 
-    for (int i = 0; i < 2; i += 1)
+    for (i = 0; i < 2; i += 1)
     {
-        for (int j = 0; j < renderer -> no_buttons[i]; j += 1)
+        for (j = 0; j < renderer -> no_buttons[i]; j += 1)
         {
             if (renderer -> is_button_visible[i][j]) {
                 if (renderer -> buttons[i][j] -> image_not_clicked -> is_visible == true){
@@ -190,9 +197,10 @@ void renderer_add_image(GRAPHICS_RENDERER* renderer, image_element* image)
 
 void renderer_handle_click(GRAPHICS_RENDERER* renderer, int x, int y)
 {
-    for (int i = 0; i < 2; i += 1)
+    int i,j;
+    for (i = 0; i < 2; i += 1)
     {
-        for (int j = 0; j < renderer -> no_images[i]; j += 1)
+        for (j = 0; j < renderer -> no_images[i]; j += 1)
         {
             if (renderer -> is_button_visible[i][j])
             {
@@ -218,9 +226,10 @@ void renderer_handle_click(GRAPHICS_RENDERER* renderer, int x, int y)
 
 void renderer_handle_click_released(GRAPHICS_RENDERER* renderer, int x, int y)
 {
-    for (int i = 0; i < 2; i += 1)
+    int i,j;    
+    for (i = 0; i < 2; i += 1)
     {
-        for (int j = 0; j < renderer -> no_images[i]; j += 1)
+        for (j = 0; j < renderer -> no_images[i]; j += 1)
         {
             if (renderer -> is_button_visible[i][j])
             {
