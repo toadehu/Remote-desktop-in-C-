@@ -9,7 +9,7 @@
 
 #include <windows.h>
 #include <wingdi.h>
-#include <memoryapi.h>
+#include "memoryapi.h"
 
 #elif __linux__
 
@@ -30,7 +30,7 @@
 #endif
 #endif
 
-void* __aligned_malloc(unsigned long size, unsigned long alignment) 
+void* __aligned_malloc(unsigned long size, unsigned long alignment)
 {
     if (alignment < 1024)
         alignment = 1024;
@@ -44,6 +44,30 @@ void* __aligned_malloc(unsigned long size, unsigned long alignment)
     #endif
 }
 
+void* __aligned_realloc(void* old_ptr, unsigned long old_size, unsigned long new_size, unsigned long alignment)
+{
+    if (alignment < 1024)
+        alignment = 1024;
+
+    void* new_ptr = NULL;
+
+    #ifdef _WIN32
+    new_ptr = VirtualAlloc(NULL, new_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (new_ptr != NULL) {
+        memcpy(new_ptr, old_ptr, old_size < new_size ? old_size : new_size);
+        VirtualFree(old_ptr, 0, MEM_RELEASE);
+    }
+    #elif __unix__
+    if (posix_memalign(&new_ptr, alignment, new_size) == 0) {
+        if (new_ptr != NULL) {
+            memcpy(new_ptr, old_ptr, old_size < new_size ? old_size : new_size);
+            free(old_ptr);
+        }
+    }
+    #endif
+
+    return new_ptr;
+}
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
 Uint32 rmask = 0xff000000;
@@ -74,19 +98,19 @@ struct wl_data {
     int32_t width, height;
 };
 
-static void registry_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version) 
+static void registry_global(void *data, struct wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
 {
     struct wl_data *wl_data = (struct wl_data *)data;
 
-    if (strcmp(interface, wl_shm_interface.name) == 0) 
+    if (strcmp(interface, wl_shm_interface.name) == 0)
     {
         wl_data->shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
-    } 
-    else if (strcmp(interface, wl_compositor_interface.name) == 0) 
+    }
+    else if (strcmp(interface, wl_compositor_interface.name) == 0)
     {
         wl_data->compositor = wl_registry_bind(registry, name, &wl_compositor_interface, 1);
-    } 
-    else if (strcmp(interface, wl_output_interface.name) == 0) 
+    }
+    else if (strcmp(interface, wl_output_interface.name) == 0)
     {
         wl_data->output = wl_registry_bind(registry, name, &wl_output_interface, 1);
     }
@@ -101,7 +125,7 @@ static const struct wl_registry_listener registry_listener = {
 
 static void output_geometry(void *data, struct wl_output *output, int32_t x, int32_t y,
  int32_t physical_width, int32_t physical_height, int32_t subpixel,
-  const char *make, const char *model, int32_t transform) 
+  const char *make, const char *model, int32_t transform)
 {
     struct wl_data *wl_data = (struct wl_data *)data;
     wl_data->width = physical_width;
@@ -109,7 +133,7 @@ static void output_geometry(void *data, struct wl_output *output, int32_t x, int
 }
 
 static void output_mode(void *data, struct wl_output *output, uint32_t flags,
- int32_t width, int32_t height, int32_t refresh) 
+ int32_t width, int32_t height, int32_t refresh)
  {
     if (flags & WL_OUTPUT_MODE_CURRENT) {
         struct wl_data *wl_data = (struct wl_data *)data;
@@ -133,9 +157,10 @@ static const struct wl_output_listener output_listener = {
 
 typedef struct SCREEN_CAPTURE
 {
+    int placeholder; /*place holder for something*/
 } screen_capture;
 
-void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_height)
+void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
 {
     /* Screenshots are operating system dependent sadly*/
     /* So this is needed*/
@@ -149,14 +174,14 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     *_height = height;
 
     /* Create a buffer to hold the image data*/
-    if (*_size != width * height * 4)
+    if ((*_size) != width * height * 4)
     {
         if (*_buffer != NULL)
         {
             free(*_buffer);
         }
-        *_size = width * height * 4;
-        *_buffer = (unsigned char *)__aligned_malloc(*_size, 16);
+        (* _size) = width * height * 4;
+        *_buffer = (char *)__aligned_malloc(*_size, 1024);
     }
 
     *_size = width * height * 4;
@@ -177,14 +202,12 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     /* Copy the bitmap data into the buffer*/
     BITMAPINFOHEADER bi = {sizeof(BITMAPINFOHEADER), width, height, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
 
-    GetDIBits(hdcScreen, hbmScreen, 0, height, *_buffer, (BITMAPINFO *)&bi, DIB_RGB_COLORS);
-
     /* Get the cursor position and dimensions*/
     POINT cursorPos;
     GetCursorPos(&cursorPos);
     int cursorX = cursorPos.x;
     int cursorY = cursorPos.y;
-    CURSORINFO cursorInfo = {sizeof(CURSORINFO)};
+    CURSORINFO cursorInfo = { sizeof(CURSORINFO) };
     GetCursorInfo(&cursorInfo);
 
     /* Capture the cursor if it is visible*/
@@ -192,8 +215,12 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
     {
         ICONINFO cursorIconInfo;
         GetIconInfo(cursorInfo.hCursor, &cursorIconInfo);
-        int cursorWidth = cursorIconInfo.xHotspot * 2;
-        int cursorHeight = cursorIconInfo.yHotspot * 2;
+
+        /* Get the size of the cursor */
+        BITMAP bm;
+        GetObject(cursorIconInfo.hbmColor, sizeof(BITMAP), &bm);
+        int cursorWidth = bm.bmWidth;
+        int cursorHeight = bm.bmHeight;
 
         /* Create a bitmap for the cursor and select it into a device context*/
         HDC hdcCursor = CreateCompatibleDC(hdcScreen);
@@ -207,33 +234,36 @@ void capture_screen(unsigned char **_buffer, int *_size, int *_width, int *_heig
         BITMAP bmCursor;
         GetObject(hbmCursor, sizeof(BITMAP), &bmCursor);
         BITMAPINFO bmi = {sizeof(BITMAPINFOHEADER), bmCursor.bmWidth, bmCursor.bmHeight, 1, 32, BI_RGB, 0, 0, 0, 0, 0};
-        unsigned char *cursorBits;
         GetDIBits(hdcCursor, hbmCursor, 0, bmCursor.bmHeight, NULL, (BITMAPINFO*)&bmi, DIB_RGB_COLORS);
-        cursorBits = (unsigned char *)__aligned_malloc(bmCursor.bmWidthBytes * bmCursor.bmHeight, 16);
-        GetDIBits(hdcCursor, hbmCursor, 0, bmCursor.bmHeight, cursorBits, (BITMAPINFO*)&bmi, DIB_RGB_COLORS);
-        for (int y = 0; y < bmCursor.bmHeight; y++)
-        {
-            for (int x = 0; x < bmCursor.bmWidth; x++)
-            {
-                int screenX = cursorX - cursorIconInfo.xHotspot + x;
-                int screenY = cursorY - cursorIconInfo.yHotspot + y;
-                if (screenX >= 0 && screenX < width && screenY >= 0 && screenY < height)
-                {
-                    int cursorIndex = y * bmCursor.bmWidthBytes + x * 4;
-                    int screenIndex = screenY * width * 4 + screenX * 4;
-                    (*_buffer)[screenIndex] = cursorBits[cursorIndex + 2];     /* Red channel*/
-                    (*_buffer)[screenIndex + 1] = cursorBits[cursorIndex + 1]; /* Green channel*/
-                    (*_buffer)[screenIndex + 2] = cursorBits[cursorIndex];     /* Blue channel*/
-                    (*_buffer)[screenIndex + 3] = cursorBits[cursorIndex + 3]; /* Alpha channel*/
-                }
-            }
-        }
+        /* Draw the cursor into the screen bitmap at the cursor position */
+        BitBlt(hdcMemDC, cursorX - cursorIconInfo.xHotspot, cursorY - cursorIconInfo.yHotspot, cursorWidth, cursorHeight, hdcCursor, 0, 0, SRCCOPY);
+
         /* Clean up the cursor bitmap and device context*/
-        free(cursorBits);
-        SelectObject(hdcCursor, oldCursorObj);
+        /*free(cursorBits);
         DeleteObject(hbmCursor);
-        DeleteDC(hdcCursor);
+        DeleteDC(hdcCursor);*/
     }
+
+    GetDIBits(hdcScreen, hbmScreen, 0, height, *_buffer, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
+
+    /*We have to flip the image vertically because windows is funny and quirky
+    BUT ONLY BEFORE WE ATTEMPT TO DRAW THE CURSOR BECAUSE THAT IS OBVIOUSLY NOT FLIPPED*/
+    int rowSize = width * 4;
+    char* tempRow = (char*)malloc(rowSize);
+
+    int i;
+    for (i = 0; i < height / 2; i++) {
+        int j = height - i - 1;
+        char* row1 = (*_buffer) + i * rowSize;
+        char* row2 = (*_buffer) + j * rowSize;
+
+        // Swap rows using a temporary buffer
+        memcpy(tempRow, row1, rowSize);
+        memcpy(row1, row2, rowSize);
+        memcpy(row2, tempRow, rowSize);
+    }
+
+    free(tempRow);
 
     /* Clean up the screen bitmap and device contexts*/
     SelectObject(hdcMemDC, oldObj);
