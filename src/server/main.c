@@ -1,4 +1,12 @@
+/*
+	SERVER
+*/
+
 #include "framework.h"
+
+#define HEADER_SIZE 20
+
+int port;
 
 void update_versace_size(SDL_Rect* rect, SDL_Rect win_rect)
 {
@@ -20,12 +28,36 @@ int main (int argc, char *argv[])
 		printf("error initializing SDL: %s\n", SDL_GetError());
 	}
 
-	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, "Test", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
+	int i;
+	for (i = 1; i < argc; i++)
+	{
+		switch (argv[i][1])
+		{
+		case 'h':
+			printf("Usage: -p PORT\n");
+			exit(0);
+		case 'p':
+			if (strlen(argv[i]) != 2)
+			{
+				printf("Invalid argument\n Correct usage: -ip4/6 IPADDR@user -p PORT\n");
+				exit(1);
+			}
+			port = atoi(argv[i + 1]);
+			i++;
+			break;
+		default:
+			printf("Invalid argument\nCorrect usage: -ip4/6 IPADDR@user -p PORT\n");
+			exit(1);
+
+		}
+	}
+
+	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, (char*)"Test", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
 	SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
 
 	/*GRAPHICS_RENDERER *la_lautari = create_graphics_renderer(800, 600, "Lautari", SDL_WINDOW_SHOWN);*/
 
-	button_element *versace_button = create_new_button_element(renderer -> renderer, "button.png", "flopa.jpg", renderer -> win_rect.w / 8, renderer -> win_rect.h / 8,
+	button_element *versace_button = create_new_button_element(renderer -> renderer, (char*)"button.png", (char*)"flopa.png", renderer -> win_rect.w / 8, renderer -> win_rect.h / 8,
 	  renderer -> win_rect.w / 8, renderer -> win_rect.h / 8, update_versace_size);
 
 	versace_button -> on_click = versace_button_on_click;
@@ -34,16 +66,19 @@ int main (int argc, char *argv[])
 
 	renderer_update_rects(renderer);
 
-	unsigned char* screen_bits = NULL;
-	unsigned char* yuv_buffer = NULL;
+	char* screen_bits = NULL;
+	char* yuv_buffer = NULL;
+	char* sending_buffer = NULL;
 
-	int buffer_size = 0, screen_width, screen_height;
+	int buffer_size = 0, screen_width, screen_height, sending_buffer_size = 0;
 
 	/*Is the main loop active?*/
 	bool loop = 1;
 
 	/*create the video encoder*/
 	basic_video_enc* basic_enc = NULL;
+
+	struct TCP_Socket* sock = TCP_SOCKET_create(port, 0, true, 1, 0);
 
 	while (loop)
 	{
@@ -67,33 +102,7 @@ int main (int argc, char *argv[])
 					}
 					break;
 				case SDL_MOUSEBUTTONDOWN:
-					if (event.button.button == SDL_BUTTON_LEFT)
-					{
-						renderer_handle_click(renderer, event.button.x, event.button.y);
-	
-						/*Start the capture*/
-						capture_screen(&screen_bits, &buffer_size, &screen_width, &screen_height);
-
-						if (yuv_buffer == NULL)
-							yuv_buffer = (unsigned char *)__aligned_malloc((screen_width * screen_height * 3) / 2, 1024);
-						
-						ARGBToYUV420(&screen_bits, screen_width, screen_height, &yuv_buffer);
-						
-						#ifdef _DEBUG
-						printf("Writing test.yuv file\n");
-						#endif
-						if (basic_enc == NULL)
-						{
-							basic_enc = create_basic_video_enc(screen_width, screen_height,
-							 0, 
-							VIDEO_YUV420 | RLE_TWO_PASS, 0);
-
-							int _sz = basic_encode_next_frame(basic_enc, yuv_buffer);
-							#ifdef _DEBUG
-							printf("Size of first frame: %d\n", _sz);
-							#endif
-						}
-					}
+					renderer_handle_click(renderer, event.button.x, event.button.y);
 					break;
 				case SDL_MOUSEBUTTONUP:
 					if (event.button.button == SDL_BUTTON_LEFT)
@@ -115,29 +124,91 @@ int main (int argc, char *argv[])
 		/* update the screen*/
 		SDL_RenderPresent(renderer -> renderer);
 
-		if (basic_enc != NULL)
-		{
 		capture_screen(&screen_bits, &buffer_size, &screen_width, &screen_height);
 
 		if (yuv_buffer == NULL)
-			yuv_buffer = (unsigned char *)__aligned_malloc((screen_width * screen_height * 3) / 2, 16);
-						
-		/*As it stands, using SIMD version of conversions yields to wrong results, maybe I will look into it*/
+		{
+			yuv_buffer = (char *)__aligned_malloc(((screen_width * screen_height * 3) / 2), 4096);
+			sending_buffer = (char *)__aligned_malloc(((screen_width * screen_height * 3) / 2) + 20, 4096); /* This will be large enough for anything */
+			sending_buffer_size = ((screen_width * screen_height * 3) / 2) + 20;
+			basic_enc = basic_create_video_enc(screen_width, screen_height, 0, VIDEO_YUV420, RLE_TWO_PASS);
+
+			if (basic_enc == NULL)
+			{
+				printf("Failed to create encoder\n");
+				exit(1);
+			}
+		}
+
+#ifdef _DEBUG
+		printf("Screen size: %d, %d\n", screen_width, screen_height);
+#endif
+
+		printf("First 4 U values be like: %d, %d, %d, %d\n", yuv_buffer[0 + screen_width * screen_height], yuv_buffer[1 + screen_width * screen_height], yuv_buffer[2 + screen_width * screen_height], yuv_buffer[3 + screen_width * screen_height]);
+
 		ARGBToYUV420(&screen_bits, screen_width, screen_height, &yuv_buffer);
+
+#ifdef _DEBUG
+		printf("YUV conversion done \n");
+#endif
+
+		if (basic_enc == NULL)
+		{
+			printf("Failed to create encoder\n");
+			exit(1);
+		}
+
+		int encoding_flags, sz = 0;
 
 #ifdef _DEBUG
 		clock_t start = clock();
 
-		int sz = basic_encode_next_frame(basic_enc, yuv_buffer);
+		sz = basic_encode_next_frame(basic_enc, yuv_buffer, &encoding_flags);
 
 		clock_t end = clock();
 
 		printf("Time for encode %d, size of image: %d\n", (end - start) * 1000 / CLOCKS_PER_SEC, sz);
-#else
-		basic_encode_next_frame(basic_enc, yuv_buffer);
-#endif
 
+#else
+		sz = basic_encode_next_frame(basic_enc, yuv_buffer, &encoding_flags);
+#endif
+		printf("Encoding done\n");
+		if (sending_buffer_size < sz + 20)
+		{
+			free(sending_buffer);
+			sending_buffer = (char *)__aligned_malloc(sz + 20000, 4096);
+			sending_buffer_size = sz + 20000;
 		}
+		int encode_rez = basic_copy_frame(basic_enc, sending_buffer, sending_buffer_size, 20, encoding_flags);
+		if (encode_rez)
+		{
+			sending_buffer = (char *)__aligned_realloc(sending_buffer, sending_buffer_size, sz + 512 * 1024, 1024);
+		}
+		sending_buffer[0] = new_frame;
+		*((int*)((char*)sending_buffer + 4)) = htonl(encoding_flags);
+		*((int*)((char*)sending_buffer + 8)) = htonl(sz);
+		*((int*)((char*)sending_buffer + 12)) = htonl(basic_enc -> pass2_size);
+		*(uint16_t*)((char*)sending_buffer + 16) = htons(screen_width);
+		*(uint16_t*)((char*)sending_buffer + 18) = htons(screen_height);
+
+		int sent = TCP_Socket_send_data(sock, 0, sending_buffer, sz + 20);
+		if (sent == -1)
+		{
+			/* The client disconnected :(*/
+			printf("The client disconnected\n");
+			TCP_Socket_accept_new_connection(sock, 0);
+		}
+		if (sent != sz + 20)
+		{
+			int sent2 = TCP_Socket_send_data(sock, 0, sending_buffer, sz + 20 - sent);
+			if (sent2 < 0)
+			{
+				printf("The client disconnected\n");
+				TCP_Socket_accept_new_connection(sock, 0);
+			}
+			sent2 == sz + 20 - sent ? printf("Data sent\n") : printf("The connection is compromised, expected to send%d, actually sent: %d\n", sz + 20, sent2); exit(1);
+		}
+		printf("Data sent\n");
 
 		/* calculate to 24fps*/
 		SDL_Delay(renderer -> ms);
