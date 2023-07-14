@@ -5,6 +5,13 @@
 #include <SDL_timer.h>
 #include <SDL_ttf.h>
 
+#ifdef _WIN32
+/* This is so stupid */
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+#endif
+
 #define IMAGE_FROM_FILE 1
 #define IMAGE_FROM_RGB24 2
 #define IMAGE_FROM_RGB32 4
@@ -17,21 +24,82 @@ typedef struct text_element
     SDL_Color text_color;
     SDL_Surface* text_surface;
     SDL_Texture* text_texture;
+    char* text;
+    int nr_chars;
+    int text_len;
+
+    bool is_visible;
+
+    /*This function is used to update the image's position, the second parameter is the position of the parent window*/
+    void (*update_rect)(SDL_Rect*, SDL_Rect);
 } text_element;
 
 text_element* new_text_element(char* font_path, int font_size, SDL_Color color, char* text, SDL_Renderer* renderer)
 {
-    text_element* new_text = malloc(sizeof(text_element));
+    text_element* new_text = (text_element*)malloc(sizeof(text_element));
     new_text -> font = TTF_OpenFont(font_path, font_size);
-    if (new_text -> font == NULL)
+    if (new_text->font == NULL)
+    {
         printf("Error: %s\n", SDL_GetError());
-    return NULL;
+        return NULL;
+    }
+    //return NULL;
     new_text -> text_color = color;
     new_text -> text_surface = TTF_RenderText_Blended(new_text -> font, text, new_text -> text_color);
-    if (new_text -> text_surface == NULL)
+    if (new_text->text_surface == NULL)
+    {
         printf("Error: %s", SDL_GetError());
+        return NULL;
+    }
     new_text -> text_texture = SDL_CreateTextureFromSurface(renderer, new_text -> text_surface);
+
+    new_text -> text = (char*)malloc(10);
+    new_text -> text_len = 10;
+    new_text -> nr_chars = 0;
     return new_text;
+}
+
+/**
+ * Adds a character to the text_element
+ * @param te a pointer to the text_element struct
+ * @param c the character to be added
+ * @return 0 on succes, 1 on failure
+*/
+bool text_element_add_character(text_element* te, char c)
+{
+    if (te -> text_len == (te -> nr_chars + 1))
+    {
+        te -> text_len *= 2;
+        char* new_text = (char*)malloc(te->text_len);
+        /* Something went horribly wrong */
+        if (new_text == NULL)
+        {
+            return 1;
+        }
+        memcpy(new_text, te->text, te->nr_chars);
+        free(te->text);
+        te->text = new_text;
+    }
+    te -> text[te -> nr_chars + 1] = c;
+    te -> nr_chars += 1;
+    te -> text[te -> nr_chars + 1] = '\0';
+    return 0;
+}
+
+/**
+ * Removes a character from the text_element
+ * @param te a pointer to the text_element struct
+ * @return 0 on normal operation, 1 if there is no character to remove
+*/
+bool text_element_remove_character(text_element* te)
+{
+    if (te -> nr_chars == 0)
+    {
+        return 1;
+    }
+    te -> text[te -> nr_chars] = '\0';
+    te -> nr_chars -= 1;
+    return 0;
 }
 
 typedef struct image_element
@@ -40,7 +108,7 @@ typedef struct image_element
     SDL_Texture* texture;
     SDL_Renderer* renderer;
     bool is_visible;
-    
+
     /*This function is used to update the image's position, the second parameter is supposed to be the position of the parent window*/
     void (*update_rect)(SDL_Rect*, SDL_Rect);
 } image_element;
@@ -80,46 +148,50 @@ image_element* create_new_image_element(SDL_Renderer* renderer, char* Img_path, 
 
 void image_element_update_graphics(image_element* img, char* data, int type_of_image)
 {
-    /*if (img -> texture)*/
-    /*{*/
-        /*Destroy the old texture*/
-        SDL_DestroyTexture(img -> texture);
-    /*}*/
-
     SDL_Surface* surface = NULL;
+    SDL_Texture* new_texture = NULL;
+
     if (type_of_image == IMAGE_FROM_FILE)
     {
         /*Load the image as a surface*/
         surface = IMG_Load(data);
-
-        /*Load the surface into the graphics hardware's memory*/
-        img -> texture = SDL_CreateTextureFromSurface(img -> renderer, surface);
-
-        /*Free the surface from main memory*/
-        SDL_FreeSurface(surface);
-        return;
     }
     else if (type_of_image == IMAGE_FROM_RGB24)
     {
         /*Load the image as a surface*/
-        surface = SDL_CreateRGBSurfaceFrom(data, img -> rect.w, img -> rect.h, 24, img -> rect.w * 3, 0, 0, 0, 0);
+        surface = SDL_CreateRGBSurfaceFrom(data, img->rect.w, img->rect.h, 24, img->rect.w * 3, 0, 0, 0, 0);
     }
     else if (type_of_image == IMAGE_FROM_RGB32)
     {
         /*Load the image as a surface*/
-        surface = SDL_CreateRGBSurfaceFrom(data, img -> rect.w, img -> rect.h, 32, img -> rect.w * 4, 0, 0, 0, 0);
+        surface = SDL_CreateRGBSurfaceFrom(data, img->rect.w, img->rect.h, 32, img->rect.w * 4, 0, 0, 0, 0);
     }
-    if (surface != NULL)    
-    {
-        img -> texture = SDL_CreateTextureFromSurface(img -> renderer, surface);
 
+    if (surface != NULL)
+    {
+        new_texture = SDL_CreateTextureFromSurface(img->renderer, surface);
         SDL_FreeSurface(surface);
     }
     else
     {
         printf("Error: %s\n", SDL_GetError());
     }
+
+    if (new_texture != NULL)
+    {
+        if (img->texture)
+        {
+            SDL_DestroyTexture(img->texture);
+        }
+
+        img->texture = new_texture;
+    }
+    else
+    {
+        printf("Error: Failed to create texture: %s\n", SDL_GetError());
+    }
 }
+
 
 typedef struct button_element
 {
