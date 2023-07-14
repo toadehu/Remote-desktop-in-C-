@@ -66,7 +66,7 @@ GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, int flags,
 	/*create a renderer*/
 	graphics_renderer ->  renderer = SDL_CreateRenderer(graphics_renderer -> window, -1, render_flags);
 
-    image_element* background = create_new_image_element(graphics_renderer -> renderer, "img.jpg", 0, 0, 0, 0, update_background_rectangle);
+    image_element* background = create_new_image_element(graphics_renderer -> renderer, (char*)"img.jpg", 0, 0, 0, 0, update_background_rectangle);
     
     graphics_renderer -> images[0] = (image_element**)malloc(sizeof(image_element*));
 
@@ -97,10 +97,9 @@ GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, int flags,
 /*
 *   Wrapper function to update the background image according to the flags (which are taken from graphics_objects.h)
 */
-void renderer_update_bg(GRAPHICS_RENDERER* renderer, unsigned char* data, int flags)
+void renderer_update_bg(GRAPHICS_RENDERER* renderer, char* data, int flags)
 {
     image_element_update_graphics(renderer -> images[0][0], data, flags);
-
 }
 
 /* Update the sizes of the images*/
