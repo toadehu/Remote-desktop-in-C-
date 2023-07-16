@@ -8,35 +8,35 @@
 #pragma warning(disable : 4996)
 #endif
 
-typedef unsigned char u_char;
+typedef unsigned char byte;
+
+/* How often should the key presses buffer be send, in milliseconds */
+const int keybufferinterval = 25; 
 
 /* Define a struct to hold arguments for capture_screen function*/
 struct CaptureScreenArgs {
-    char** screen_bits;
-    int* buffer_size;
-    int* screen_width;
-    int* screen_height;
+	char** screen_bits;
+	int* buffer_size;
+	int* screen_width;
+	int* screen_height;
 };
 
 /* Define a struct to hold arguments for resize_image_bilinear function*/
 struct ResizeImageArgs {
-    char* screen_bits;
-    char* resized_screen_bits;
-    int screen_width;
-    int screen_height;
-    int target_width;
-    int target_height;
-    int* resized_size;
-    int channels;
+	char* screen_bits;
+	char* resized_screen_bits;
+	int screen_width;
+	int screen_height;
+	int target_width;
+	int target_height;
+	int* resized_size;
+	int channels;
 };
 
-struct CapAndResizeArgs{
+struct CapAndResizeArgs {
 	struct CaptureScreenArgs cap_args;
 	struct ResizeImageArgs resize_args;
 };
-
-char* serverIp, *user;
-int ipver,port;
 
 void capture_and_resize(void* args)
 {
@@ -44,15 +44,15 @@ void capture_and_resize(void* args)
 	{
 		struct CapAndResizeArgs* cap_and_resize_args = (struct CapAndResizeArgs*)args;
 
-		capture_screen(cap_and_resize_args -> cap_args.screen_bits, cap_and_resize_args -> cap_args.buffer_size,
-		cap_and_resize_args -> cap_args.screen_width, cap_and_resize_args -> cap_args.screen_height);
+		capture_screen(cap_and_resize_args->cap_args.screen_bits, cap_and_resize_args->cap_args.buffer_size,
+			cap_and_resize_args->cap_args.screen_width, cap_and_resize_args->cap_args.screen_height);
 
 		clock_t start = clock();
 
-		resize_image_bilinear((const unsigned char*)cap_and_resize_args -> resize_args.screen_bits, (unsigned char*)cap_and_resize_args -> resize_args.resized_screen_bits,
-		cap_and_resize_args -> resize_args.screen_width, cap_and_resize_args -> resize_args.screen_height,
-		cap_and_resize_args -> resize_args.target_width, cap_and_resize_args -> resize_args.target_height,
-		cap_and_resize_args -> resize_args.resized_size, cap_and_resize_args -> resize_args.channels);
+		resize_image_bilinear((const unsigned char*)cap_and_resize_args->resize_args.screen_bits, (unsigned char*)cap_and_resize_args->resize_args.resized_screen_bits,
+			cap_and_resize_args->resize_args.screen_width, cap_and_resize_args->resize_args.screen_height,
+			cap_and_resize_args->resize_args.target_width, cap_and_resize_args->resize_args.target_height,
+			cap_and_resize_args->resize_args.resized_size, cap_and_resize_args->resize_args.channels);
 
 		/*resize_image_nearest_neighbor(screen_bits, resized_screen_bits, screen_width, screen_height,*/
 		/* renderer -> images[0][0] -> rect.w, renderer -> images[0][0] -> rect.h, &resized_size, 4);*/
@@ -65,10 +65,18 @@ void capture_and_resize(void* args)
 	}
 }
 
+char* serverIp, * user;
+int ipver, port;
+
+int keypresses_size;
+char* keypresses;
+
 int SDL_main(int argc, char* argv[])
 {
 	serverIp = (char*)malloc(20);
 	user = (char*)malloc(128);
+
+	bool have_AVX = checkAVX2Support();
 
 	int i;
 	size_t serverIpLen;
@@ -132,37 +140,37 @@ int SDL_main(int argc, char* argv[])
 	printf("User: %s\n", user);
 	printf("Port: %d\n", port);
 
-    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
-    {
-        printf("error initializing SDL: %s\n", SDL_GetError());
-        exit(1);
-    }
+	if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
+	{
+		printf("error initializing SDL: %s\n", SDL_GetError());
+		exit(1);
+	}
 
-    GRAPHICS_RENDERER* renderer = create_graphics_renderer(1280, 720, (char*)"Test\0", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
-	SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
+	GRAPHICS_RENDERER* renderer = create_graphics_renderer(1280, 720, (char*)"Test\0", NULL, SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
+	SDL_GetWindowSize(renderer->window, &renderer->win_rect.w, &renderer->win_rect.h);
 
-    renderer -> ms = 50;
+	renderer->ms = 50;
 
 	char* buffer = NULL;
 
 	char* screen_bits = NULL;
 	char* yuv_buffer = NULL;
 
-    char* resized_screen_bits = NULL;
+	char* resized_screen_bits = NULL;
 
-    int resized_size = 0;
+	int resized_size = 0;
 
-    int buffer_size = 0, screen_width = 0, screen_height = 0;
+	int buffer_size = 0, screen_width = 0, screen_height = 0;
 
 	buffer = (char*)__aligned_malloc(720 * 1280, 1024);
 	buffer_size = 720 * 1280;
 
-    /*Is the main loop active?*/
+	/*Is the main loop active?*/
 	bool loop = 1;
 
 	struct TCP_Socket* sock = TCP_SOCKET_create(port > 0 ? port : 4002, INADDR_LOOPBACK, false, false, CLIENT | BIG_BUFFER);
 
-	basic_video_dec *basic_dec = NULL;
+	basic_video_dec* basic_dec = NULL;
 
 	int connection_ret = -1;
 	while (connection_ret == -1 || connection_ret == 9999999)
@@ -176,8 +184,8 @@ int SDL_main(int argc, char* argv[])
 		{
 			printf("Connecting to the server failed, retry, change remote server or quit? (r,c,q)\n");
 			char inp;
-			scanf("%c", &inp);
 			PROCESS_INP:
+			(void)scanf("%c", &inp);
 			if (inp == 'r')
 			{
 				continue;
@@ -191,14 +199,26 @@ int SDL_main(int argc, char* argv[])
 			{
 				exit(0);
 			}
-			else 
+			else
 			{
 				printf("Invalid input, try again\n");
-				scanf("%c", &inp);
+				/* (void)scanf("%c", &inp); */
 				goto PROCESS_INP;
 			}
 		}
 	}
+
+	/* There should never be more than 1000bytes of key presses in a given interval */
+	keypresses = (char*)malloc(1000);
+	keypresses_size = 0;
+
+	int mouseX, mouseY, relativeX, relativeY, windowX, windowY;
+	SDL_KeyboardEvent key;
+	SDL_Keycode keycode;
+	Uint16 modifiers;
+
+	clock_t buffer_start, buffer_current;
+	buffer_start = clock();
 
 	/*Main loop*/
 	while (loop)
@@ -208,34 +228,177 @@ int SDL_main(int argc, char* argv[])
 		{
 			switch (event.type)
 			{
-				case SDL_QUIT:
-					SDL_DestroyWindow(renderer -> window);
-					SDL_Quit();
-					loop = 0;
-					break;
-				case SDL_WINDOWEVENT:
-			       	if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+			case SDL_QUIT:
+				SDL_DestroyWindow(renderer->window);
+				SDL_Quit();
+				loop = 0;
+				break;
+			case SDL_WINDOWEVENT:
+				if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+				{
+					/*SDL_GetWindowSize(renderer->window, &renderer->win_rect.w, &renderer->win_rect.h);*/
+					/*adjust the size of the texture*/
+					/*renderer_update_rects(renderer);*/
+					/*update_rectangle_size(&renderer -> images[0][0] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);*/
+				}
+				break;
+			case SDL_KEYDOWN:
+				 key = event.key;
+
+				/* Get the key code */
+				keycode = key.keysym.sym;
+
+				/* Check for any modifiers */
+				modifiers = key.keysym.mod;
+
+				/* To preserve alignment I waste 3 bytes, but I will find a use for them later*/
+				keypresses[keypresses_size] = (char)keybd_input;
+				keypresses_size += 4;
+
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(keycode);
+				keypresses_size += 4;
+				/* I want to preserve the alignment to 4 bytes per field. This makes everything nice and easy*/
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(modifiers);
+				keypresses_size += 4;
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+				SDL_GetMouseState(&mouseX, &mouseY);
+
+				SDL_GetWindowPosition(renderer->window, &windowX, &windowY);
+				relativeX = mouseX - windowX;
+				relativeY = mouseY - windowY;
+				if (event.button.button == SDL_BUTTON_LEFT)
+				{
+					/* This is a double click. No triple/quadruple clicks and so on atm */
+					if (event.button.clicks > 1)
 					{
-						/*SDL_GetWindowSize(renderer->window, &renderer->win_rect.w, &renderer->win_rect.h);*/
-						/*adjust the size of the texture*/
-						/*renderer_update_rects(renderer);*/
-                        /*update_rectangle_size(&renderer -> images[0][0] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);*/
+						keypresses[keypresses_size] = (char)mouse_input_click;
+						keypresses_size += 1;
+						keypresses[keypresses_size] = (char)mouse_input_click;
+						keypresses_size += 1;
+						keypresses[keypresses_size] = (char)CLICK_LEFT;
+						keypresses_size += 2;
+
+						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+						keypresses_size += 4;
+						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+						keypresses_size += 4;	
 					}
-					break;
-				case SDL_MOUSEBUTTONDOWN:
-					if (event.button.button == SDL_BUTTON_LEFT)
+					else
 					{
-                        
+						keypresses[keypresses_size] = (char)mouse_input_click;
+						keypresses_size += 1;
+						keypresses[keypresses_size] = (char)CLICK_RIGHT;
+						keypresses_size += 2;
+
+						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+						keypresses_size += 4;
+						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+						keypresses_size += 4;
+
 					}
-					break;
-				case SDL_MOUSEBUTTONUP:
-					if (event.button.button == SDL_BUTTON_LEFT)
-					{
-                        
-					}
-					break;
+				}
+				else if (event.button.button == SDL_BUTTON_RIGHT)
+				{
+					keypresses[keypresses_size] = (char)mouse_input_click;
+					keypresses_size += 1;
+					keypresses[keypresses_size] = (char)CLICK_RIGHT;
+					keypresses_size += 3;
+
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+					keypresses_size += 4;
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+					keypresses_size += 4;
+
+				}
+				else if (event.button.button == SDL_BUTTON_MIDDLE)
+				{
+					keypresses[keypresses_size] = (char)mouse_input_click;
+					keypresses_size += 1;
+					keypresses[keypresses_size] = (char)CLICK_MIDDLE;
+					keypresses_size += 3;
+
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+					keypresses_size += 4;
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+					keypresses_size += 4;
+
+				}
+				else if (event.button.button = SDL_BUTTON_X1)
+				{
+					keypresses[keypresses_size] = (char)mouse_input_click;
+					keypresses_size += 1;
+					keypresses[keypresses_size] = (char)CLICK_OEM1;
+					keypresses_size += 3;
+
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+					keypresses_size += 4;
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+					keypresses_size += 4;
+
+				}
+				else if (event.button.button = SDL_BUTTON_X2)
+				{
+					keypresses[keypresses_size] = (char)mouse_input_click;
+					keypresses_size += 1;
+					keypresses[keypresses_size] = (char)CLICK_OEM2;
+					keypresses_size += 3;
+
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+					keypresses_size += 4;
+					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+					keypresses_size += 4;
+
+				}
+				break;
+			case SDL_MOUSEWHEEL:
+				keypresses[keypresses_size] = (char)mouse_input_scroll;
+				keypresses_size += 1;
+				keypresses[keypresses_size] = (char)event.wheel.x;
+				keypresses_size += 1;
+				keypresses[keypresses_size] = (char)event.wheel.y;
+				keypresses_size += 2;
+
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+				keypresses_size += 4;
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+				keypresses_size += 4;
+
+				break;]
+			case SDL_MOUSEBUTTONUP:
+				if (event.button.button == SDL_BUTTON_LEFT)
+				{
+
+				}
+				break;
 			}
 		}
+		buffer_current = clock();
+
+		if ((double)1000 * (buffer_current - buffer_start) > CLOCKS_PER_SEC * keybufferinterval)
+		{
+			buffer_start = buffer_current;
+			/* We send the input buffer */
+			if (keypresses_size)
+			{
+				/* Send the keypresses */
+				int sent = TCP_Socket_send_data(sock, -1, keypresses, keypresses_size);
+				if (sent == -1)
+				{
+					printf("Server has shut down, exiting\n");
+					exit(1);
+				}
+				if (sent != keypresses_size)
+				{
+					printf("Expected %d bytes, sent %d bytes for the keypresses\n", keypresses_size, sent);
+					printf("Something catastrophic happened, the connection is probably compromised or the server has shut down... exiting\n");
+					exit(1);
+				}
+				keypresses_size = 0;
+			}
+		}
+
+		if (buffer_current - buffer_start)
 
 		int rec = TCP_Socket_receive_data_fixed(sock, buffer, 20);
 		if (rec == -1)
@@ -269,8 +432,8 @@ int SDL_main(int argc, char* argv[])
 				screen_bits = (char*)__aligned_malloc(w * h * 4, 1024);
 				yuv_buffer = (char*)__aligned_malloc(w * h * 3 / 2, 1024);
 				int res_w = 1920, res_h = 1080;
-				renderer -> win_rect.w > w ? res_w = renderer -> win_rect.w + 300 : w + 300;
-				renderer -> win_rect.h > h ? res_h = renderer -> win_rect.h + 300 : h + 300; /* This is to have some room so the reallocation doesn't happen */
+				renderer->win_rect.w > w ? res_w = renderer->win_rect.w + 300 : w + 300;
+				renderer->win_rect.h > h ? res_h = renderer->win_rect.h + 300 : h + 300; /* This is to have some room so the reallocation doesn't happen */
 				resized_screen_bits = (char*)__aligned_malloc(res_w * res_h * 4, 1024);
 				resized_size = res_w * res_h * 4;
 			}
@@ -286,9 +449,9 @@ int SDL_main(int argc, char* argv[])
 				screen_height = (int)h;
 			}
 
-			if  (encoded_image_size > buffer_size)
+			if (encoded_image_size > buffer_size)
 			{
-				buffer = (char*)__aligned_realloc(buffer, buffer_size, buffer_size * 2 > encoded_image_size ? buffer_size * 2 : encoded_image_size + buffer_size, 4096); 
+				buffer = (char*)__aligned_realloc(buffer, buffer_size, buffer_size * 2 > encoded_image_size ? buffer_size * 2 : encoded_image_size + buffer_size, 4096);
 				buffer_size = buffer_size * 2 > encoded_image_size ? buffer_size * 2 : encoded_image_size + buffer_size;/*This is to limit the number of calls to realloc, becuase it will waste at most ~4MB of ram, which is acceptable*/
 			}
 
@@ -307,32 +470,25 @@ int SDL_main(int argc, char* argv[])
 			/* Because I always update the buffer incase it is too small, I shouldn't run into issues with the buffer being too small */
 			basic_copy_frame_d(basic_dec, yuv_buffer, screen_width * screen_height * 3 / 2, 0, encoding_flags);
 
-			printf("First U pixel bits: %d %d %d %d\n", yuv_buffer[screen_width * screen_height + 0], yuv_buffer[screen_width * screen_height + 1], yuv_buffer[screen_width * screen_height + 2], yuv_buffer[screen_width * screen_height + 3]);
-
-			printf("Copied frame\n");
-
 			/*convert the image to RGB32*/
-
 			YUV420ToARGB(yuv_buffer, screen_width, screen_height, screen_bits);
 
-			printf("First pixel bits: %d %d %d %d\n", (u_char)screen_bits[0], (u_char)screen_bits[1], (u_char)screen_bits[2], (u_char)screen_bits[3]);
-
-			printf("Converted frame to ARGB\n");
-
-			resize_image_nearest_neighbor((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, screen_width, screen_height,
-				renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);
-
-			//resize_image_bilinear((const unsigned char*)screen_bits, (unsigned char*) resized_screen_bits, screen_width, screen_height,
-			//	renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, &resized_size, 4);
+			//resize_image_nearest_neighbor((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, screen_width, screen_height,
+			//	renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);
+			if (screen_width != renderer->images[0][0]->rect.w || screen_height != renderer->images[0][0]->rect.h)
+				resize_image_bilinear((const unsigned char*)screen_bits, (unsigned char*) resized_screen_bits, screen_width, screen_height,
+					renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, &resized_size, 4);
+			else
+				memcpy(resized_screen_bits, screen_bits, screen_width * screen_height * 4);
 
 			/*resize_image_nearest_neighbor(screen_bits, resized_screen_bits, screen_width, screen_height,
 			renderer -> images[0][0] -> rect.w, renderer -> images[0][0] -> rect.h, &resized_size, 4);*/
 
+			renderer_update_bg(renderer, resized_screen_bits, IMAGE_FROM_RGB32);
+
 			clock_t end = clock();
 
 			printf("Time: %f\n", (double)(1000 * (end - start)) / CLOCKS_PER_SEC);
-
-			renderer_update_bg(renderer, resized_screen_bits, IMAGE_FROM_RGB32);
 
 			/*clear the screen*/
 			SDL_RenderClear(renderer->renderer);
@@ -347,9 +503,9 @@ int SDL_main(int argc, char* argv[])
 		renderer_update_rects(renderer);
 
 		/* update the screen*/
-		SDL_RenderPresent(renderer -> renderer);
-        
-		SDL_Delay(renderer -> ms);
+		SDL_RenderPresent(renderer->renderer);
+
+		SDL_Delay(renderer->ms);
 	}
 	return 0;
 }
