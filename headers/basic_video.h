@@ -6,6 +6,8 @@
 
 #define LOWER_BITRATE_PROFILE 0 /* At the moment LOWER_BITRATE_PROFILE will use RLE where possible for the encoding, otherwise, it may resize the image and apply rle again, or jpeg */
 #define VIDEO_YUV420 1
+#define VIDEO_YUV422 2
+#define VIDEO_YUV444 4
 #define RLE_TWO_PASS 2
 #define RLE_ONE_PASS 4
 
@@ -359,10 +361,7 @@ void rle_first_decode(char* data, int size, basic_video_dec* video, char* orig)
     video -> pass2_size = 0;
     for (i = 0; i < size; i+=1)
     {
-        for (j = 0; j < (unsigned char)data[i + size]; j+=1)
-        {
-            video -> first_pass_size[video -> pass2_size + j] = data[i];
-        }
+        memset(video->first_pass_size + video->pass2_size, data[i], (u_char)data[i + size]);
         video -> pass2_size += (unsigned char)data[i + size];
     }
     printf("Pass2 size: %d\n^^^^^^^^^^^^^^^^^^^\n", video -> pass2_size);
@@ -374,10 +373,7 @@ void rle_second_decode(char* data, basic_video_dec* video)
     video -> pass1_size = 0;
     for (i = 0; i < video -> pass2_size; i+=1)
     {
-        for (j = 0; j < (u_char)video ->  first_pass_size[i]; j+=1)
-        {
-            video -> first_pass[video -> pass1_size + j] = data[i];
-        }
+        memset(video ->first_pass + video -> pass1_size, data[i], (u_char)video -> first_pass_size[i]);
         video -> pass1_size += (u_char)video -> first_pass_size[i];
     }
     printf("Pass1 size: %d\n^^^^^^^^^^^^^^^^^^^\n", video -> pass1_size);
