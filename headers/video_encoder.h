@@ -2,6 +2,12 @@
 
 #include <stdint.h>
 
+
+#ifdef __AVX2__
+#include <immintrin.h>
+
+#endif
+
 #ifdef HAVE_X86
 #include <emmintrin.h>
 #include <immintrin.h>
@@ -185,6 +191,110 @@ void ARGBToYUV420(char **argb, int width, int height, char **yuv)
     }
 }
 
+#ifdef _MSC_VER
+#include <intrin.h> // For Microsoft Visual C++
+#else
+#include <cpuid.h> // For GCC and Clang
+#endif
+
+bool checkAVX2Support()
+{
+#ifdef _MSC_VER
+    int info[4];
+    __cpuid(info, 0); // Get the highest supported function ID
+    if (info[0] < 7)
+        return false;
+
+    __cpuidex(info, 7, 0); // Get the feature flags
+    return (info[1] & (1 << 5)) != 0; // Check the AVX2 bit (bit 5 of ECX)
+#else
+    unsigned int eax, ebx, ecx, edx;
+    if (__get_cpuid(0, &eax, &ebx, &ecx, &edx) && eax >= 7)
+    {
+        __cpuid_count(7, 0, eax, ebx, ecx, edx);
+        return (ebx & (1 << 5)) != 0; // Check the AVX2 bit (bit 5 of EBX)
+    }
+    return false;
+#endif
+}
+
+#ifdef __AVX2__
+
+void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
+{
+    int plane_size = width * height;
+    int argb_index = 0;
+    char* y_plane = yuv;
+    char* u_plane = yuv + plane_size;
+    char* v_plane = yuv + plane_size + plane_size / 4;
+
+    const __m256i y_offset = _mm256_set1_epi8(-16);
+    const __m256i uv_offset = _mm256_set1_epi8(-128);
+    const __m256i coef_r = _mm256_set1_epi16(298);
+    const __m256i coef_g = _mm256_set1_epi16(-100);
+    const __m256i coef_g2 = _mm256_set1_epi16(-208);
+    const __m256i coef_b = _mm256_set1_epi16(516);
+    const __m256i coef_const = _mm256_set1_epi16(128);
+    const __m256i clamp_min = _mm256_setzero_si256();
+    const __m256i clamp_max = _mm256_set1_epi16(255);
+
+    for (int j = 0; j < height; j++)
+    {
+        int vert_offset = (j >> 1) * (width >> 1);
+        int vert_offset2 = j * width;
+
+        for (int i = 0; i < width; i += 16)
+        {
+            /* Load Y, U, and V values */
+            __m256i y_values = _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)(y_plane + vert_offset2 + i)));
+            __m256i u_values = _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)(u_plane + vert_offset + (i >> 1))));
+            __m256i v_values = _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)(v_plane + vert_offset + (i >> 1))));
+
+
+            /* Subtract offsets */
+            y_values = _mm256_add_epi16(y_values, y_offset);
+            u_values = _mm256_add_epi16(u_values, uv_offset);
+            v_values = _mm256_add_epi16(v_values, uv_offset);
+
+            /* Calculate RGB values */
+            __m256i r_values = _mm256_srai_epi16(_mm256_add_epi16(_mm256_mullo_epi16(coef_r, y_values),
+                _mm256_mullo_epi16(coef_b, v_values)), 8);
+            __m256i g_values = _mm256_srai_epi16(_mm256_add_epi16(_mm256_mullo_epi16(coef_r, y_values),
+                _mm256_add_epi16(_mm256_mullo_epi16(coef_g, u_values),
+                    _mm256_mullo_epi16(coef_g2, v_values))), 8);
+            __m256i b_values = _mm256_srai_epi16(_mm256_add_epi16(_mm256_mullo_epi16(coef_r, y_values),
+                _mm256_mullo_epi16(coef_b, u_values)), 8);
+
+            /* Add constant offset */
+            r_values = _mm256_add_epi16(r_values, coef_const);
+            g_values = _mm256_add_epi16(g_values, coef_const);
+            b_values = _mm256_add_epi16(b_values, coef_const);
+
+            /* Clamp values */
+            r_values = _mm256_min_epi16(_mm256_max_epi16(r_values, clamp_min), clamp_max);
+            g_values = _mm256_min_epi16(_mm256_max_epi16(g_values, clamp_min), clamp_max);
+            b_values = _mm256_min_epi16(_mm256_max_epi16(b_values, clamp_min), clamp_max);
+
+            /* Convert RGB values to bytes */
+            __m256i rg_values = _mm256_packus_epi16(r_values, g_values);
+            __m256i ba_values = _mm256_packus_epi16(b_values, _mm256_set1_epi16(255));
+
+            /* Interleave RGB and BA values */ 
+            __m256i ar_values = _mm256_permute2x128_si256(rg_values, ba_values, 0x20);
+            __m256i gb_values = _mm256_permute2x128_si256(rg_values, ba_values, 0x31);
+
+            /* Store the interleaved results */
+            _mm256_storeu_si256((__m256i*)(argb + argb_index), ar_values);
+            _mm256_storeu_si256((__m256i*)(argb + argb_index + 32), gb_values);
+
+            argb_index += 64;
+        }
+    }
+}
+
+#endif
+
+
 void YUV420ToARGB(char *yuv, int width, int height, char *argb)
 {
     int plane_size = width * height;
@@ -194,11 +304,13 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
     char* v_plane = yuv + plane_size + plane_size / 4;
     int i,j;
     for (j = 0; j < height; j+=1){
+        int vert_offset = (j >> 1) * (width >> 1);
+        int vert_offset2 = j * width;
         for (i = 0; i < width; i+=1)
         {
-            int y = (unsigned char)y_plane[j * width + i];
-            int u = (unsigned char)u_plane[(j / 2) * (width / 2) + (i / 2)];
-            int v = (unsigned char)v_plane[(j / 2) * (width / 2) + (i / 2)];
+            int y = (unsigned char)y_plane[vert_offset2 + i];
+            int u = (unsigned char)u_plane[vert_offset + (i / 2)];
+            int v = (unsigned char)v_plane[vert_offset + (i / 2)];
 
             int c = y - 16;
             int d = u - 128;
@@ -216,6 +328,42 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
             (argb)[argb_index++] = g;
             (argb)[argb_index++] = r;            
             (argb)[argb_index++] = 255; /* Set the alpha channel to 255 (opaque)*/
+        }
+    }
+}
+
+void YUV420ToRGB24(char* yuv, int width, int height, char* argb)
+{
+    int plane_size = width * height;
+    int argb_index = 0;
+    char* y_plane = yuv;
+    char* u_plane = yuv + plane_size;
+    char* v_plane = yuv + plane_size + plane_size / 4;
+    int i, j;
+    for (j = 0; j < height; j += 1) {
+        int vert_offset = (j >> 1) * (width >> 1);
+        int vert_offset2 = j * width;
+        for (i = 0; i < width; i += 1)
+        {
+            int y = (unsigned char)y_plane[vert_offset2 + i];
+            int u = (unsigned char)u_plane[vert_offset + (i / 2)];
+            int v = (unsigned char)v_plane[vert_offset + (i / 2)];
+
+            int c = y - 16;
+            int d = u - 128;
+            int e = v - 128;
+
+            int r = (298 * c + 409 * e + 128) >> 8;
+            int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+            int b = (298 * c + 516 * d + 128) >> 8;
+
+            r = r < 0 ? 0 : (r > 255 ? 255 : r);
+            g = g < 0 ? 0 : (g > 255 ? 255 : g);
+            b = b < 0 ? 0 : (b > 255 ? 255 : b);
+
+            (argb)[argb_index++] = b;
+            (argb)[argb_index++] = g;
+            (argb)[argb_index++] = r;
         }
     }
 }
@@ -392,12 +540,14 @@ char bilinear_interpolate_SIMD(const char *src, float x, float y, int width, int
 
 #endif
 
-char bilinear_interpolate(const unsigned char *src, float x, float y, int width, int channels, int channel)
+char bilinear_interpolate(const unsigned char *src, float x, float y, int width, int height, int channels, int channel)
 {
     int x1 = (int)x;
     int x2 = x1 + 1;
+    if (x2 >= width) x2--;
     int y1 = (int)y;
     int y2 = y1 + 1;
+    if (y2 >= height) y2--;
 
     float x_frac = x - x1;
     float y_frac = y - y1;
@@ -431,7 +581,13 @@ void resize_image_bilinear(const unsigned char *src, unsigned char *dst, int src
 
                 for (channel = 0; channel < channels; channel++)
                 {
-                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, channels, channel);
+                    if (channel == 3)
+                    {
+                        dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                        continue;
+                    }
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y,
+                        src_width, src_height, channels, channel);
                 }
             }
         }
@@ -442,7 +598,12 @@ void resize_image_bilinear(const unsigned char *src, unsigned char *dst, int src
 
             for (channel = 0; channel < channels; channel++)
             {
-                dst[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, channels, channel);
+                if (channel == 3)
+                {
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                    continue;
+                }
+                dst[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
             }
         }
     }
@@ -542,7 +703,8 @@ void* thread_func(void *arg)
 
                 for (channel = 0; channel < data->channels; channel++)
                 {
-                    (*(data->dst))[(dst_y * data->dst_width + x + dst_x) * data->channels + channel] = bilinear_interpolate((const unsigned char*)data->src, src_x, src_y, data->src_width,  data->channels, channel);
+                    (*(data->dst))[(dst_y * data->dst_width + x + dst_x) * data->channels + channel] = bilinear_interpolate((const unsigned char*)data->src, src_x, src_y,
+                        data->src_width, data->src_height,  data->channels, channel);
                 }
             }
         }
@@ -553,7 +715,8 @@ void* thread_func(void *arg)
 
             for (channel = 0; channel < data->channels; channel++)
             {
-                (*(data->dst))[(dst_y * data->dst_width + dst_x) * data->channels + channel] = bilinear_interpolate((const unsigned char*)data->src, src_x, src_y, data->src_width, data->channels, channel);
+                (*(data->dst))[(dst_y * data->dst_width + dst_x) * data->channels + channel] = bilinear_interpolate((const unsigned char*)data->src, src_x, src_y, 
+                    data->src_width, data->src_height, data->channels, channel);
             }
         }
     }
@@ -619,7 +782,6 @@ void resize_image_bilinear_multithread(const char *src, char **dst, int src_widt
 #endif
 
 }
-
 
 #pragma endregion
 
