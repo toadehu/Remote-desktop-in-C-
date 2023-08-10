@@ -4,6 +4,10 @@
 
 #include "framework.h"
 
+#include <setjmp.h>
+
+/* jmp_buf */ 
+
 #define HEADER_SIZE 20
 
 int port;
@@ -52,7 +56,9 @@ int main (int argc, char *argv[])
 		}
 	}
 
-	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, (char*)"Test", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
+	printf("PORT = %d\n", port);
+
+	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, (char*)"Test", (char*)"img.jpg", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
 	SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
 
 	/*GRAPHICS_RENDERER *la_lautari = create_graphics_renderer(800, 600, "Lautari", SDL_WINDOW_SHOWN);*/
@@ -80,8 +86,16 @@ int main (int argc, char *argv[])
 
 	struct TCP_Socket* sock = TCP_SOCKET_create(port, 0, true, 1, 0);
 
+RECONNECT_CLIENT:
+	if (sock == NULL)
+	{
+		printf("Failed to create socket\n");
+		exit(1);
+	}
+
 	while (loop)
 	{
+		printf("Entering main loop\n");
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
@@ -172,7 +186,6 @@ int main (int argc, char *argv[])
 #else
 		sz = basic_encode_next_frame(basic_enc, yuv_buffer, &encoding_flags);
 #endif
-		printf("Encoding done\n");
 		if (sending_buffer_size < sz + 20)
 		{
 			free(sending_buffer);
@@ -195,10 +208,11 @@ int main (int argc, char *argv[])
 		if (sent == -1)
 		{
 			/* The client disconnected :(*/
-			printf("The client disconnected\n");
+			/* printf("The client disconnected\n"); */
 			TCP_Socket_accept_new_connection(sock, 0);
+			/* printf("Accepted new connection\n"); */
 		}
-		if (sent != sz + 20)
+		else if (sent != sz + 20)
 		{
 			int sent2 = TCP_Socket_send_data(sock, 0, sending_buffer, sz + 20 - sent);
 			if (sent2 < 0)
