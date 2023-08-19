@@ -25,6 +25,52 @@ void versace_button_on_click()
 	/*To be completed*/
 }
 
+void process_inputs(TCP_SOCKET* sock, inputs* inps)
+{
+	printf("AAAAAAAAAAAAAAAA\n");
+	/* More than 1 input/ms is impossible */
+	char buffer[200];
+	int rez = TCP_Socket_receive_data_once(sock, 0, buffer, 200);
+	int i;
+	uint32_t key, mod;
+	for (i = 0; i < rez;)
+	{
+		switch (buffer[i])
+		{
+		case mouse_input_move:
+			/* Unimplemented atm */
+			i += 12;
+			break;
+		case mouse_input_click:
+			i += 12;
+			/* Unimplemented atm */
+			break;
+		case mouse_input_scroll:
+			i += 12;
+			/* Unimplemented atm */
+			break;
+		case mouse_input_oem:
+			i += 12;
+			/* Unimplemented atm */
+			break;
+		case keybd_input:
+			i += 4;
+			key = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			mod = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			printf("\n\n\n\n\n\n\n\n\nSending the %d key with the %d modifier\n\n\n\n\n\n\n\n\n\n", key, mod);
+			send_key_press(inp, key, mod, SDL_INPUT);
+			break;
+		default:
+			i+=12;
+			printf("Unknown input\n");
+			break;
+		}
+		printf("i: %d, rez: %d\n", i, rez);
+	}
+}
+
 int main (int argc, char *argv[])
 {
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
@@ -56,6 +102,9 @@ int main (int argc, char *argv[])
 		}
 	}
 
+	inputs* inp;
+	inp = create_inputs_struct(FULL_LAYOUT | MOUSE);
+
 	printf("PORT = %d\n", port);
 
 	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, (char*)"Test", (char*)"img.jpg", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
@@ -86,6 +135,8 @@ int main (int argc, char *argv[])
 
 	struct TCP_Socket* sock = TCP_SOCKET_create(port, 0, true, 1, 0);
 
+	allow_select(sock);
+
 RECONNECT_CLIENT:
 	if (sock == NULL)
 	{
@@ -95,7 +146,6 @@ RECONNECT_CLIENT:
 
 	while (loop)
 	{
-		printf("Entering main loop\n");
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
@@ -125,6 +175,19 @@ RECONNECT_CLIENT:
 					}
 					break;
 			}
+		}
+
+		int rez = find_hot_socket_with_timeout(sock, 100);
+		/* check if there is data coming from the client */
+		if (rez == 0)
+		{
+			process_inputs(sock, inp);
+		}
+		else
+		{
+			//char bufff[100];
+			//printf("Using peek :%d", recv(sock -> client[0], bufff, 100, MSG_PEEK));
+			printf("However No data from client, rez = %d\n", rez);
 		}
 
 		/*clear the screen*/
@@ -157,8 +220,6 @@ RECONNECT_CLIENT:
 #ifdef _DEBUG
 		printf("Screen size: %d, %d\n", screen_width, screen_height);
 #endif
-
-		printf("First 4 U values be like: %d, %d, %d, %d\n", yuv_buffer[0 + screen_width * screen_height], yuv_buffer[1 + screen_width * screen_height], yuv_buffer[2 + screen_width * screen_height], yuv_buffer[3 + screen_width * screen_height]);
 
 		ARGBToYUV420(&screen_bits, screen_width, screen_height, &yuv_buffer);
 
@@ -222,7 +283,6 @@ RECONNECT_CLIENT:
 			}
 			sent2 == sz + 20 - sent ? printf("Data sent\n") : printf("The connection is compromised, expected to send%d, actually sent: %d\n", sz + 20, sent2); exit(1);
 		}
-		printf("Data sent\n");
 
 		/* calculate to 24fps*/
 		SDL_Delay(renderer -> ms);
