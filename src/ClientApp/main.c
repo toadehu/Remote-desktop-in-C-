@@ -75,6 +75,9 @@ int old_w = 0, old_h = 0;
 
 int SDL_main(int argc, char* argv[])
 {
+
+	inputs* inp = create_inputs_struct(FULL_LAYOUT);
+
 	serverIp = (char*)malloc(20);
 	user = (char*)malloc(128);
 
@@ -248,7 +251,7 @@ int SDL_main(int argc, char* argv[])
 				}
 				break;
 			case SDL_KEYDOWN:
-				 key = event.key;
+				key = event.key;
 
 				/* Get the key code */
 				keycode = key.keysym.sym;
@@ -261,6 +264,7 @@ int SDL_main(int argc, char* argv[])
 				keypresses_size += 4;
 
 				*((int*)((char*)keypresses + keypresses_size)) = htonl(keycode);
+				printf("\n\n\n\n\n\n\n\nKeycode: %d mod: %d \n\n\n\n\n\n\n\n\n", keycode, modifiers);
 				keypresses_size += 4;
 				/* I want to preserve the alignment to 4 bytes per field. This makes everything nice and easy*/
 				*((int*)((char*)keypresses + keypresses_size)) = htonl(modifiers);
@@ -294,7 +298,7 @@ int SDL_main(int argc, char* argv[])
 						keypresses[keypresses_size] = (char)mouse_input_click;
 						keypresses_size += 1;
 						keypresses[keypresses_size] = (char)CLICK_RIGHT;
-						keypresses_size += 2;
+						keypresses_size += 3;
 
 						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
 						keypresses_size += 4;
@@ -376,10 +380,12 @@ int SDL_main(int argc, char* argv[])
 
 				}
 				break;
+			/* case SDL_MOUSEMOVE:
+				break; */
 			}
 		}
+		
 		buffer_current = clock();
-
 		if ((double)1000 * (buffer_current - buffer_start) > CLOCKS_PER_SEC * keybufferinterval)
 		{
 			buffer_start = buffer_current;
@@ -387,7 +393,8 @@ int SDL_main(int argc, char* argv[])
 			if (keypresses_size)
 			{
 				/* Send the keypresses */
-				int sent = keypresses_size; /* TCP_Socket_send_data(sock, -1, keypresses, keypresses_size); */
+				int sent = TCP_Socket_send_data(sock, -1, keypresses, keypresses_size);
+				printf("\n\n\nSent %d bytes\n\n\n", sent);
 				if (sent == -1)
 				{
 					printf("Server has shut down, exiting\n");
@@ -401,6 +408,8 @@ int SDL_main(int argc, char* argv[])
 				}
 				keypresses_size = 0;
 			}
+			else
+				printf("No keypresses to send\n\n\n\n\n\n\n\n");
 		}
 
 		int rec = TCP_Socket_receive_data_fixed(sock, buffer, 20);
