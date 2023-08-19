@@ -2,6 +2,9 @@
 
 #include "graphics_objects.h"
 
+#define BACKGROUND_FROM_FILE 1
+#define BACKGROUND_FROM_DATA 2
+
 typedef struct _GRAPHICS_RENDERER 
 {
     /*The window that will be rendered on*/
@@ -39,8 +42,12 @@ typedef struct _GRAPHICS_RENDERER
 
 }GRAPHICS_RENDERER;
 
-void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect)
+void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect, void* rest)
 {
+    if (backg_rect->w != window_rect.w || backg_rect->h != window_rect.h)
+    {
+
+    }
     backg_rect -> w = window_rect.w;
     backg_rect -> h = window_rect.h / RATIO;
     backg_rect -> x = (window_rect.w - backg_rect -> w) / 2;
@@ -53,7 +60,7 @@ void update_rectangle_size(SDL_Rect* rect, int w, int h)
     rect -> h = h;
 }
 
-GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, int flags, Uint32 render_flags)
+GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, char* img_path, int flags, Uint32 render_flags)
 {
     GRAPHICS_RENDERER* graphics_renderer = (GRAPHICS_RENDERER*)malloc(sizeof(GRAPHICS_RENDERER));
     memset(graphics_renderer, 0, sizeof(GRAPHICS_RENDERER));
@@ -66,8 +73,16 @@ GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, int flags,
 	/*create a renderer*/
 	graphics_renderer ->  renderer = SDL_CreateRenderer(graphics_renderer -> window, -1, render_flags);
 
-    image_element* background = create_new_image_element(graphics_renderer -> renderer, (char*)"img.jpg", 0, 0, 0, 0, update_background_rectangle);
-    
+    image_element* background = NULL;
+
+    if (flags & BACKGROUND_FROM_FILE)
+        background = create_new_image_element(graphics_renderer -> renderer, img_path, 0, 0, 0, 0, update_background_rectangle, 0);
+    else if (flags & BACKGROUND_FROM_DATA)
+        background = create_new_image_element(graphics_renderer -> renderer, NULL, 0, 0, w, h, update_background_rectangle, TEXTURE_STREAMLINED);
+	else /* Lazy default */
+		background = create_new_image_element(graphics_renderer -> renderer, (char*)"img.jpg", 0, 0, 0, 0, update_background_rectangle, 0);
+
+
     graphics_renderer -> images[0] = (image_element**)malloc(sizeof(image_element*));
 
     graphics_renderer -> images[0][0] = background;
@@ -86,7 +101,7 @@ GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, int flags,
 	SDL_GetWindowSize(graphics_renderer -> window, &graphics_renderer -> win_rect.w, &graphics_renderer -> win_rect.h);
 
 	/*set position*/
-    graphics_renderer -> images[0][0] -> update_rect(&graphics_renderer -> images[0][0] -> rect, graphics_renderer -> win_rect);
+    graphics_renderer -> images[0][0] -> update_rect(&graphics_renderer -> images[0][0] -> rect, graphics_renderer -> win_rect, NULL);
 
     /*set the delay for 24ms*/
     graphics_renderer -> ms = 1000 / 24;
@@ -111,7 +126,7 @@ void renderer_update_rects(GRAPHICS_RENDERER* renderer)
         for (j = 0; j < renderer -> no_images[i]; j+=1)
         {
             /*update_rectangle_size(&renderer -> images[i][j] -> rect, renderer -> win_rect.w, renderer -> win_rect.h);*/
-            renderer -> images[i][j] -> update_rect(&renderer -> images[i][j] -> rect, renderer -> win_rect);
+            renderer -> images[i][j] -> update_rect(&renderer -> images[i][j] -> rect, renderer -> win_rect, NULL);
         }
     }
 
@@ -119,8 +134,8 @@ void renderer_update_rects(GRAPHICS_RENDERER* renderer)
     {
         for (j = 0; j < renderer -> no_buttons[i]; j+=1)
         {
-            renderer -> buttons[i][j] -> image_not_clicked -> update_rect(&renderer -> buttons[i][j] -> image_not_clicked -> rect, renderer -> win_rect);
-            renderer -> buttons[i][j] -> image_clicked -> update_rect(&renderer -> buttons[i][j] -> image_clicked -> rect, renderer -> win_rect);
+            renderer -> buttons[i][j] -> image_not_clicked -> update_rect(&renderer -> buttons[i][j] -> image_not_clicked -> rect, renderer -> win_rect, NULL);
+            renderer -> buttons[i][j] -> image_clicked -> update_rect(&renderer -> buttons[i][j] -> image_clicked -> rect, renderer -> win_rect, NULL);
         }
     }
 }
