@@ -21,6 +21,9 @@ typedef uint64_t __uint64_t;
 #include <sys/socket.h>
 #include <netinet/in.h>
 #define SOCKET int
+#define closesocket close
+#define SOCKET_ERROR -1
+#define INVALID_SOCKET -1
 #endif
 
 #include "buffer_receiver.h"
@@ -57,30 +60,21 @@ const int buffer_small_size   = 1024;       /* 1 KiB  */
                         |   Undefined at the moment
                         It's the first packet for connection & authentification
 */
-enum frame_type
-{
-    new_frame = 0x01,
-    mouse_input_move = 0x02,
-    mouse_input_click = 0x04,
-    mouse_input_scroll = 0x08,
-    mouse_input_oem = 0x10,
-    keybd_input = 0x20,
-    auth = 0x80
-};
 
 /**
  * Structure representing a TCP socket.
  */
 typedef struct TCP_Socket
 {
-    SOCKET tcp_socket;            /* Socket file descriptor*/
-    struct sockaddr_in server; /* Server address structure*/
+    SOCKET tcp_socket;          /* Socket file descriptor*/
+    struct sockaddr_in server;  /* Server address structure*/
     SOCKET *client;             /* Clients' sockets*/
-    int client_num;            /* Number of clients*/
-    int port;                  /* Port number*/
-    char* buffer; /* Buffer for data*/
-    __int32_t buffer_len;            /* Length of the buffer*/
-    receiver_t *receiver;      /* Receiver structure for buffering received data*/
+    int client_num;             /* Number of clients*/
+    int port;                   /* Port number*/
+    char* buffer;               /* Buffer for data*/
+    __int32_t buffer_len;       /* Length of the buffer*/
+    receiver_t *receiver;       /* Receiver structure for buffering received data*/
+    fd_set master_fds, read_fds;/* File descriptor set for select(), and a master file descriptor */
 } TCP_SOCKET;
 
 /**
@@ -253,7 +247,7 @@ bool TCP_Socket_accept_new_connection(TCP_SOCKET* server, int client_id)
  * @param ipaddr, the ip address of the remote host
  * @param port, the port of the remote server 
  * @param flags if last bit set then IP6 is used, otherwise it is IP4, there are also other flags
- * @return the return value of the call to connect(), or other big numbers upon failure 
+ * @return the return value of the call to connect(), or -1 upon failure 
 */
 int TCP_SOCKET_connect_from_string(struct TCP_Socket* sock, char* ipaddr, int port, uint32_t flags)
 {
@@ -277,7 +271,7 @@ int TCP_SOCKET_connect_from_string(struct TCP_Socket* sock, char* ipaddr, int po
             // inet_pton failed
             else
             {
-                return 9999999;
+                return -1;
             }
         }
         /* It's ip6 */
@@ -294,12 +288,12 @@ int TCP_SOCKET_connect_from_string(struct TCP_Socket* sock, char* ipaddr, int po
             /* inet_pton failed */
             else
             {
-                return 9999999;
+                return -1;
             }
         }
         if (con)
         {
-            return 9999999; /* Connect failed */
+            return -1; /* Connect failed */
         }
         else
         {
@@ -336,29 +330,6 @@ void TCP_Send_Big_Frame(TCP_SOCKET *sock, __int32_t client_id, char *frame, int 
     }
 }
 
-/**
- * Creates an authentication frame for sending over TCP.
- *
- * @param server The TCP socket.
- * @param auth1 The first authentication value.
- * @param auth2 The second authentication value.
- * @param auth3 The third authentication value.
- * @param auth4 The fourth authentication value.
- */
-void create_auth_frame(TCP_SOCKET *server, long long int auth1, long long int auth2, long long int auth3, long long int auth4)
-{
-    server->buffer[0] = auth;
-    memcpy(server->buffer + 1, &auth1, 8);
-    memcpy(server->buffer + 9, &auth2, 8);
-    memcpy(server->buffer + 17, &auth3, 8);
-    memcpy(server->buffer + 25, &auth4, 8);
-    /* TCP_SOCKET_send(server, server -> buffer, 33);*/
-}
-
-int receive_single_frame(TCP_SOCKET *sock, __int32_t client_id, char *buf, __int32_t buf_size)
-{
-    return recv(sock->client[client_id], buf, buf_size, 0);
-}
 
 /**
  * Sends data on the given socket to the given client or the server, the buffer should contain all necessary information
@@ -378,7 +349,7 @@ int TCP_Socket_send_data(TCP_SOCKET *sock, int client, char* buffer, __int32_t s
     else
     {
         /* Sanity check for invalid client */
-        if (client > sock->client_num)
+        if (client >= sock->client_num)
         {
             return -1;
         }
@@ -387,7 +358,7 @@ int TCP_Socket_send_data(TCP_SOCKET *sock, int client, char* buffer, __int32_t s
 	int total_sent = 0;
 	while (total_sent < size)
 	{
-		int sent;
+		int sent = 0;
 		sent = send(client_socket, buffer + total_sent, size - total_sent, 0);
         #ifdef _DEBUG
         printf("Sent %d bytes\n", sent);
@@ -446,7 +417,76 @@ int TCP_Socket_receive_data_stream(TCP_SOCKET *sock, char** buffer, __int32_t* s
 }
 
 /**
- * Receive data on the given socket, the data will be received continously untill the stream is empty
+ * Receive data on the given client socket
+ * 
+ * @param sock a pointer to the TCP_SOCKET that receives the data
+ * @param client the client to receive the data from, -1 if the data will be received from the server
+ * @param buffer the buffer where the data will be written to
+ * @param size the number of bytes to receive
+*/
+int TCP_Socket_receive_data(TCP_SOCKET *sock, int client, char* buffer, __int32_t size)
+{
+    SOCKET client_socket;
+    if (client == -1)
+    {
+        client_socket = sock->tcp_socket;
+    }
+    else
+    {
+        /* Sanity check for invalid client */
+        if (client >= sock->client_num)
+        {
+            return -1;
+        }
+        client_socket = sock->client[client];
+    }
+    int total_rec = 0;
+    while (total_rec < size)
+    {
+        int rec;
+        rec = recv(client_socket, buffer + total_rec, size - total_rec, 0);
+        if (rec == 0)
+        {
+            return total_rec;
+        }
+        if (rec < 0)
+        {
+            return -1;
+        }
+        total_rec += rec;
+    }
+    return total_rec;
+}
+
+/**
+ * Attempt to receive data on the given socket, the data will be received once and up to size bytes
+ * 
+ * @param sock a pointer to the TCP_SOCKET that receives the data
+ * @param client the client to receive the data from, -1 if the data will be received from the server
+ * @param buffer the buffer where the data will be written to
+ * @param size the number of bytes to receive 
+ */
+int TCP_Socket_receive_data_once(TCP_SOCKET* sock, int client, char* buffer, __int32_t size)
+{
+    SOCKET client_socket;
+    if (client == -1)
+    {
+        client_socket = sock->tcp_socket;
+    }
+    else
+    {
+        /* Sanity check for invalid client */
+        if (client >= sock->client_num)
+        {
+            return -1;
+        }
+        client_socket = sock->client[client];
+    }
+    return recv(client_socket, buffer, size, 0);
+}
+
+/**
+ * Receive data on the given socket, the data will be received up to size bytes
  * 
  * @param sock a pointer to the TCP_SOCKET that receives the data
  * @param buffer the buffer where the data will be written to
@@ -455,6 +495,8 @@ int TCP_Socket_receive_data_stream(TCP_SOCKET *sock, char** buffer, __int32_t* s
  */
 int TCP_Socket_receive_data_fixed(TCP_SOCKET *sock, char* buffer, __int32_t size)
 {
+    return TCP_Socket_receive_data(sock, -1, buffer, size);
+    /*
     int total_rec = 0;
     while (total_rec < size)
     {
@@ -471,4 +513,96 @@ int TCP_Socket_receive_data_fixed(TCP_SOCKET *sock, char* buffer, __int32_t size
         total_rec += rec;
     }
     return total_rec;
+    */
 }
+
+void zero_file_descriptor_set(TCP_SOCKET *sock)
+{
+    FD_ZERO(&sock->master_fds);
+    FD_ZERO(&sock->read_fds);
+}
+
+void set_file_descriptor_set(TCP_SOCKET *sock)
+{
+    FD_SET(sock->tcp_socket, &sock->master_fds);
+    sock->read_fds = sock->master_fds;
+}
+
+void allow_select(TCP_SOCKET *sock)
+{
+    zero_file_descriptor_set(sock);
+    set_file_descriptor_set(sock);
+}
+
+/*
+ * @brief Finds the socket that has data to be read or if the socket has a client connecting to it
+ * 
+ * @param sock a pointer to the TCP_SOCKET that will be checked
+ * @param microseconds the timeout interval in microseconds, if it is 0, find_hot_socket() will be called with a 1 milisecond timeout
+ * 
+ * @return the index of the socket that has data to be read, -1 if no socket has data to be read, -2 for any error, INT32_MAX if a new client has connected
+*/
+int find_hot_socket_with_timeout(TCP_SOCKET *sock, int32_t microseconds)
+{
+    if (microseconds == 0)
+    {
+        microseconds = 1000;
+    }
+    if  (sock == NULL)
+    {
+        printf("Wtf romenia %p\n\n\n", sock);
+        return -2;
+    }
+
+    allow_select(sock);
+    
+    sock->read_fds = sock->master_fds;
+
+    int max_fd = sock->tcp_socket;
+    for (int i = 0; i < sock->client_num; i+=1)
+    {
+        FD_SET(sock->client[i], &sock->read_fds);
+        if (sock->client[i] > max_fd)
+        {
+            max_fd = sock->client[i];
+        }
+    }
+
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = microseconds; /* the given timeout*/
+
+    int activity = select(max_fd + 1, &sock->read_fds, NULL, NULL, &timeout);
+
+    /* Something went wrong */
+    if (activity == SOCKET_ERROR)
+    {
+        printf("Wtf italia %d\n\n\n", activity);
+        return -2;
+    }
+    /* Nothing is happening */
+    else if (activity == 0)
+    {
+        printf("Wtf germania %d\n\n\n", activity);
+        return -1;
+    }
+
+    /* A new client has connected */
+    if (FD_ISSET(sock->tcp_socket, &sock->read_fds))
+    {
+        return INT32_MAX;
+    }
+
+    int i;
+    for (i = 0; i < sock->client_num; i+=1)
+    {
+        if (FD_ISSET(sock->client[i], &sock->read_fds))
+        {
+            return i;
+        }
+    }
+
+    /* Unexpected behaviour */
+    return -2;
+}
+
