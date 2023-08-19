@@ -61,7 +61,7 @@
 #define SDLK_TO_UINPUT_LEFT   KEY_LEFT
 #define SDLK_TO_UINPUT_RIGHT  KEY_RIGHT
 
-/* SDL keys to integers */
+/* SDL keys to uint32_tegers */
 #define SDLK_A 97
 #define SDLK_B 98
 #define SDLK_C 99
@@ -158,7 +158,7 @@
 
 /* Other keys */
 #define SDLK_PAUSE 1073741896
-#define SDLK_PRINTSCREEN 1073741894
+#define SDLK_PRuint32_tSCREEN 1073741894
 #define SDLK_APPLICATION 1073741925 /* Often referred to as the 'menu' */
 #define SDLK_EXECUTE 1073741940
 #define SDLK_HELP 1073741941
@@ -210,7 +210,7 @@
 #define SDLK_KP_DECIMAL 1073741978
 #define SDLK_KP_HEXADECIMAL 1073741979
 
-/* International keys */
+/* uint32_ternational keys */
 #define SDLK_WORLD_1 161 // non-US #1
 #define SDLK_WORLD_2 162 // non-US #2
 #define SDLK_THOUSANDSSEPARATOR 1073741952
@@ -231,7 +231,200 @@
 #define SDLK_CRSEL 1073741988
 #define SDLK_EXSEL 1073741989
 
+/* Modifiers as actual modifiers, because if you press shift + a for example then you get SDLK_A plus KMOD_SHIFT */
+#define KMOD_LSHIFT 0x0001
+#define KMOD_RSHIFT 0x0002
+#define KMOD_LCTRL 0x0040
+#define KMOD_RCTRL 0x0080
+#define KMOD_LALT 0x0100
+#define KMOD_RALT 0x0200
+#define KMOD_LGUI 0x0400
+#define KMOD_RGUI 0x0800
+#define KMOD_NUM 0x1000
+#define KMOD_CAPS 0x2000
+#define KMOD_MODE 0x4000
+#define KMOD_SCROLL 0x8000
+
+uint32_t MODIFIERS[12] = {KMOD_LSHIFT, KMOD_RSHIFT, KMOD_LCTRL, KMOD_RCTRL, KMOD_LALT, KMOD_RALT, KMOD_LGUI, KMOD_RGUI, KMOD_NUM, KMOD_CAPS, KMOD_MODE, KMOD_SCROLL};
+
 #ifdef _WIN32
+
+#include <winuser.h>
+
+uint32_t MOD_KEYS[12] = {VK_LSHIFT, VK_RSHIFT, VK_LCONTROL, VK_RCONTROL, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN, VK_NUMLOCK, VK_CAPITAL, VK_MODECHANGE, VK_SCROLL};
+
+uint32_t convertSDL2KeyToWIN32(uint32_t keycode)
+{
+    switch (keycode)
+    {
+        case SDLK_A: return 'A';
+        case SDLK_B: return 'B';
+        case SDLK_C: return 'C';
+        case SDLK_D: return 'D';
+        case SDLK_E: return 'E';
+        case SDLK_F: return 'F';
+        case SDLK_G: return 'G';
+        case SDLK_H: return 'H';
+        case SDLK_I: return 'I';
+        case SDLK_J: return 'J';
+        case SDLK_K: return 'K';
+        case SDLK_L: return 'L';
+        case SDLK_M: return 'M';
+        case SDLK_N: return 'N';
+        case SDLK_O: return 'O';
+        case SDLK_P: return 'P';
+        case SDLK_Q: return 'Q';
+        case SDLK_R: return 'R';
+        case SDLK_S: return 'S';
+        case SDLK_T: return 'T';
+        case SDLK_U: return 'U';
+        case SDLK_V: return 'V';
+        case SDLK_W: return 'W';
+        case SDLK_X: return 'X';
+        case SDLK_Y: return 'Y';
+        case SDLK_Z: return 'Z';
+        case SDLK_0: return '0';
+        case SDLK_1: return '1';
+        case SDLK_1+1: return '2';
+        case SDLK_1+2: return '3';
+        case SDLK_1+3: return '4';
+        case SDLK_1+4: return '5';
+        case SDLK_1+5: return '6';
+        case SDLK_1+6: return '7';
+        case SDLK_1+7: return '8';
+        case SDLK_1+8: return '9';
+        case SDLK_KP_0: return VK_NUMPAD0;
+        case SDLK_KP_1: return VK_NUMPAD1;
+        case SDLK_KP_2: return VK_NUMPAD2;
+        case SDLK_KP_3: return VK_NUMPAD3;
+        case SDLK_KP_4: return VK_NUMPAD4;
+        case SDLK_KP_5: return VK_NUMPAD5;
+        case SDLK_KP_6: return VK_NUMPAD6;
+        case SDLK_KP_7: return VK_NUMPAD7;
+        case SDLK_KP_8: return VK_NUMPAD8;
+        case SDLK_KP_9: return VK_NUMPAD9;
+        case SDLK_KP_DIVIDE: return VK_DIVIDE;
+        case SDLK_KP_MULTIPLY: return VK_MULTIPLY;
+        case SDLK_KP_MINUS: return VK_SUBTRACT;
+        case SDLK_KP_PLUS: return VK_ADD;
+        case SDLK_KP_ENTER: return VK_RETURN;
+        case SDLK_KP_PERIOD: return VK_DECIMAL;
+        case SDLK_KP_EQUALS: return VK_OEM_NEC_EQUAL;
+        case SDLK_KP_COMMA: return VK_SEPARATOR;
+        case SDLK_KP_EQUALSAS400: return VK_OEM_NEC_EQUAL;
+        case SDLK_F1: return VK_F1;
+        case SDLK_F1+1: return VK_F2;
+        case SDLK_F1+2: return VK_F3;
+        case SDLK_F1+3: return VK_F4;
+        case SDLK_F1+4: return VK_F5;
+        case SDLK_F1+5: return VK_F6;
+        case SDLK_F1+6: return VK_F7;
+        case SDLK_F1+7: return VK_F8;
+        case SDLK_F1+8: return VK_F9;
+        case SDLK_F1+9: return VK_F10;
+        case SDLK_F1+10: return VK_F11;
+        case SDLK_F1+11: return VK_F12;
+        case SDLK_F13: return VK_F13;
+        case SDLK_F13+1: return VK_F14;
+        case SDLK_F13+2: return VK_F15;
+        case SDLK_F13+3: return VK_F16;
+        case SDLK_F13+4: return VK_F17;
+        case SDLK_F13+5: return VK_F18;
+        case SDLK_F13+6: return VK_F19;
+        case SDLK_F13+7: return VK_F20;
+        case SDLK_F13+8: return VK_F21;
+        case SDLK_F13+9: return VK_F22;
+        case SDLK_F13+10: return VK_F23;
+        case SDLK_F13+11: return VK_F24;
+        case SDLK_LSHIFT: return VK_LSHIFT;
+        case SDLK_RSHIFT: return VK_RSHIFT;
+        case SDLK_LCTRL: return VK_LCONTROL;
+        case SDLK_RCTRL: return VK_RCONTROL;
+        case SDLK_LALT: return VK_LMENU;
+        case SDLK_RALT: return VK_RMENU;
+        case SDLK_LGUI: return VK_LWIN;
+        case SDLK_RGUI: return VK_RWIN;
+        /* case SDLK_MODE: return VK_MODECHANGE; */
+        case SDLK_UP: return VK_UP;
+        case SDLK_DOWN: return VK_DOWN;
+        case SDLK_LEFT: return VK_LEFT;
+        case SDLK_RIGHT: return VK_RIGHT;
+        case SDLK_RETURN: return VK_RETURN;
+        case SDLK_ESCAPE: return VK_ESCAPE;
+        case SDLK_BACKSPACE: return VK_BACK;
+        case SDLK_TAB: return VK_TAB;
+        case SDLK_SPACE: return VK_SPACE;
+        case SDLK_INSERT: return VK_INSERT;
+        case SDLK_HOME: return VK_HOME;
+        case SDLK_PAGEUP: return VK_PRIOR;
+        case SDLK_DELETE: return VK_DELETE;
+        case SDLK_END: return VK_END;
+        case SDLK_PAUSE: return VK_PAUSE;
+        case SDLK_PRuint32_tSCREEN: return VK_SNAPSHOT;
+        case SDLK_APPLICATION: return VK_APPS;
+        case SDLK_HELP: return VK_HELP;
+        case SDLK_MENU: return VK_MENU;
+        case SDLK_SELECT: return VK_SELECT;
+        case SDLK_STOP: return VK_CANCEL;
+        case SDLK_MUTE: return VK_VOLUME_MUTE;
+        case SDLK_AUDIOMUTE: return VK_VOLUME_MUTE;
+        case SDLK_AUDIONEXT: return VK_MEDIA_NEXT_TRACK;
+        case SDLK_AUDIOPLAY: return VK_MEDIA_PLAY_PAUSE;
+        case SDLK_AUDIOPREV: return VK_MEDIA_PREV_TRACK;
+        case SDLK_AUDIOSTOP: return VK_MEDIA_STOP;
+        case SDLK_VOLUMEDOWN: return VK_VOLUME_DOWN;
+        case SDLK_VOLUMEUP: return VK_VOLUME_UP;
+        case SDLK_KP_PERCENT: return VK_OEM_5;
+        case SDLK_KP_LESS: return VK_OEM_102;
+        case SDLK_KP_GREATER: return VK_OEM_102;
+        case SDLK_KP_VERTICALBAR: return VK_OEM_5;
+        case SDLK_KP_DBLVERTICALBAR: return VK_OEM_5;
+        case SDLK_KP_PLUSMINUS: return VK_OEM_PLUS;
+        case SDLK_KP_COLON: return VK_OEM_1;
+        case SDLK_KP_HASH: return VK_OEM_3;
+        case SDLK_KP_SPACE: return VK_SPACE;
+        case SDLK_KP_AT: return VK_OEM_3;
+        case SDLK_KP_EXCLAM: return VK_OEM_3;
+        case SDLK_KP_MEMSTORE: return VK_OEM_3;
+        case SDLK_KP_MEMRECALL: return VK_OEM_3;
+        case SDLK_KP_MEMCLEAR: return VK_OEM_3;
+        case SDLK_KP_MEMADD: return VK_OEM_3;
+        case SDLK_KP_MEMSUBTRACT: return VK_OEM_3;
+        case SDLK_KP_MEMMULTIPLY: return VK_OEM_3;
+        case SDLK_KP_MEMDIVIDE: return VK_OEM_3;
+        case SDLK_KP_CLEAR: return VK_OEM_3;
+        case SDLK_KP_CLEARENTRY: return VK_OEM_3;
+        case SDLK_KP_BINARY: return VK_OEM_3;
+        case SDLK_KP_OCTAL: return VK_OEM_3;
+        case SDLK_KP_DECIMAL: return VK_OEM_3;
+        case SDLK_KP_HEXADECIMAL: return VK_OEM_3;
+        case SDLK_WORLD_1: return VK_OEM_3;
+        case SDLK_WORLD_2: return VK_OEM_3;
+        case SDLK_THOUSANDSSEPARATOR: return VK_OEM_3;
+        case SDLK_DECIMALSEPARATOR: return VK_OEM_3;
+        default: return 0;
+    }
+}
+
+uint32_t convertSDL2ModToWIN32(uint32_t mod)
+{
+    switch(mod)
+    {
+        case KMOD_LSHIFT: return VK_LSHIFT;
+        case KMOD_RSHIFT: return VK_RSHIFT;
+        case KMOD_LCTRL: return VK_LCONTROL;
+        case KMOD_RCTRL: return VK_RCONTROL;
+        case KMOD_LALT: return VK_LMENU;
+        case KMOD_RALT: return VK_RMENU;
+        case KMOD_LGUI: return VK_LWIN;
+        case KMOD_RGUI: return VK_RWIN;
+        case KMOD_NUM: return VK_NUMLOCK;
+        case KMOD_CAPS: return VK_CAPITAL;
+        case KMOD_MODE: return VK_MODECHANGE;
+        case KMOD_SCROLL: return VK_SCROLL;
+        default: return 0;
+    }
+}
 
 #else
 
@@ -240,10 +433,11 @@
 #include <string.h>
 #include <unistd.h>
 
+uint32_t32_t MOD_KEYS[12] = {KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_RIGHTCTRL, KEY_LEFTALT, KEY_RIGHTALT, KEY_LEFTMETA, KEY_RIGHTMETA, KEY_NUMLOCK, KEY_CAPSLOCK, KEY_MODE, KEY_SCROLLLOCK};
+
 /* This only extracts the key */
-int32_t convertSDL2KeyToUInput(int32_t keycode)
+uint32_t32_t convertSDL2KeyToUInput(uint32_t32_t keycode)
 {
-    int32_t key = 0;
     /* Regular keys needs to be changed to switch */
     switch (keycode)
     {
@@ -340,6 +534,19 @@ int32_t convertSDL2KeyToUInput(int32_t keycode)
         case SDLK_DOWN: return KEY_DOWN;
         case SDLK_LEFT: return KEY_LEFT;
         case SDLK_RIGHT: return KEY_RIGHT;
+        /* Modifier keys */
+        case SDLK_LSHIFT: return KEY_LEFTSHIFT;
+        case SDLK_RSHIFT: return KEY_RIGHTSHIFT;
+        case SDLK_LCTRL: return KEY_LEFTCTRL;
+        case SDLK_RCTRL: return KEY_RIGHTCTRL;
+        case SDLK_LALT: return KEY_LEFTALT;
+        case SDLK_RALT: return KEY_RIGHTALT;
+        case SDLK_LGUI: return KEY_LEFTMETA;
+        case SDLK_RGUI: return KEY_RIGHTMETA;
+        /* Lock keys */
+        case SDLK_CAPSLOCK: return KEY_CAPSLOCK;
+        case SDLK_NUMLOCKCLEAR: return KEY_NUMLOCK;
+        case SDLK_SCROLLLOCK: return KEY_SCROLLLOCK;
         /* Navigation keys */
         case SDLK_INSERT: return KEY_INSERT;
         case SDLK_HOME: return KEY_HOME;
@@ -349,7 +556,7 @@ int32_t convertSDL2KeyToUInput(int32_t keycode)
         /* case SDLK_PAGEDOWN: return KEY_PAGEDOWN; */
         /* Other keys */
         case SDLK_PAUSE : return KEY_PAUSE;
-        case SDLK_PRINTSCREEN : return KEY_SYSRQ;
+        case SDLK_PRuint32_tSCREEN : return KEY_SYSRQ;
         case SDLK_APPLICATION : return KEY_COMPOSE;
         /* case SDLK_EXECUTE : return KEY_EXE; */
         case SDLK_HELP : return KEY_HELP;
@@ -400,7 +607,7 @@ int32_t convertSDL2KeyToUInput(int32_t keycode)
         case SDLK_KP_DECIMAL : return KEY_KPDECIMAL;
         case SDLK_KP_HEXADECIMAL : return KEY_KPHEXADECIMAL;
         */
-       /* International keys */
+       /* uint32_ternational keys */
         case SDLK_WORLD_1 : return KEY_LEFTCTRL;
         case SDLK_WORLD_2 : return KEY_RIGHTCTRL;
         case SDLK_THOUSANDSSEPARATOR : return KEY_COMPOSE;
@@ -411,19 +618,22 @@ int32_t convertSDL2KeyToUInput(int32_t keycode)
 }
 
 /* This extracts the modifier too */
-int32_t convertSDL2ModToUInput(int32_t mod)
+uint32_t32_t convertSDL2ModToUInput(uint32_t32_t mod)
 {
     switch(mod)
     {
-        case SDLK_LSHIFT : return KEY_LEFTSHIFT;
-        case SDLK_RSHIFT : return KEY_RIGHTSHIFT;
-        case SDLK_LCTRL  : return KEY_LEFTCTRL;
-        case SDLK_RCTRL  : return KEY_RIGHTCTRL;
-        case SDLK_LALT   : return KEY_LEFTALT;
-        case SDLK_RALT   : return KEY_RIGHTALT;
-        case SDLK_LGUI   : return KEY_LEFTMETA;
-        case SDLK_RGUI   : return KEY_RIGHTMETA;
-        case SDLK_MODE   : return KEY_MODE;
+        case KMOD_LSHIFT : return KEY_LEFTSHIFT;
+        case KMOD_RSHIFT : return KEY_RIGHTSHIFT;
+        case KMOD_LCTRL  : return KEY_LEFTCTRL;
+        case KMOD_RCTRL  : return KEY_RIGHTCTRL;
+        case KMOD_LALT   : return KEY_LEFTALT;
+        case KMOD_RALT   : return KEY_RIGHTALT;
+        case KMOD_LGUI   : return KEY_LEFTMETA;
+        case KMOD_RGUI   : return KEY_RIGHTMETA;
+        case KMOD_NUM    : return KEY_NUMLOCK;
+        case KMOD_CAPS   : return KEY_CAPSLOCK;
+        case KMOD_MODE   : return KEY_MODE;
+        case KMOD_SCROLL   : return KEY_SCROLL;
         default: return 0;
     }
 }
@@ -437,12 +647,17 @@ int32_t convertSDL2ModToUInput(int32_t mod)
 
 typedef struct inputs
 {
-    int fd;
+    uint32_t fd;
+#ifdef _WIN32
+    /* This is to press and release a key*/
+    INPUT inputs[2];
+#endif
+
 #ifndef _WIN32
     struct uinput_setup usetup;
     struct input_event ev_key, ev_mod;
 #endif
-    int last_input_result;
+    uint32_t last_input_result;
 }inputs;
 
 #ifndef _WIN32
@@ -577,7 +792,7 @@ void register_other_key(inputs* inp)
     ioctl(inp->fd, UI_SET_KEYBIT, KEY_MUTE);
 }
 
-void register_intl_keys(inputs* inp)
+void register_uint32_tl_keys(inputs* inp)
 {
     ioctl(inp->fd, UI_SET_KEYBIT, KEY_LEFTCTRL); /* What is this key for? */
     ioctl(inp->fd, UI_SET_KEYBIT, KEY_RIGHTCTRL); /* What is this key for? */
@@ -595,58 +810,162 @@ void register_keypad_special_keys(inputs* inp)
     ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPPLUSMINUS);
 }
 
+void register_mouse_keys(inputs* inp)
+{
+    ioctl(inp->fd, UI_SET_EVBIT, EV_REL);
+    ioctl(inp->fd, UI_SET_RELBIT, REL_X);
+    ioctl(inp->fd, UI_SET_RELBIT, REL_Y);
+    ioctl(inp->fd, UI_SET_RELBIT, REL_WHEEL);
+    ioctl(inp->fd, UI_SET_KEYBIT, BTN_LEFT);
+    ioctl(inp->fd, UI_SET_KEYBIT, BTN_RIGHT);
+    ioctl(inp->fd, UI_SET_KEYBIT, BTN_MIDDLE);
+    ioctl(inp->fd, UI_SET_KEYBIT, BTN_SIDE);
+    ioctl(inp->fd, UI_SET_KEYBIT, BTN_EXTRA);
+}
+
 #endif
 
-/* Regular keys include letters, modifiers, locks, and numbers basically a 60% layout with the arrows and some modifiers */
-#define REGULAR_KEYS 1
-#define FUNCTION_KEYS 2
-#define NUMPAD_KEYS 4
-#define OTHER_KEYS 8
-#define MEDIA_KEYS 16
-#define INTL_KEYS 32
-#define KEYPAD_SPECIAL 64
-#define EXTENDED_KEYS 128
+
+#define REGULAR_KEYS 1    /* Regular keys include letters, modifiers, locks, and numbers basically a 60% layout with the arrows and some modifiers */
+#define FUNCTION_KEYS 2   /* Self explainatory*/
+#define NUMPAD_KEYS 4     /* Self explainatory*/
+#define OTHER_KEYS 8      /* This includes weird buttons like pruint32_tscreen, help, menu, copy, paste and some more stuff*/
+#define MEDIA_KEYS 16     /* Keys for media playback, and volume changes*/
+#define uint32_tL_KEYS 32      /* I don't really know what these are, but they exist */
+#define KEYPAD_SPECIAL 64 /* Some more odd keypad keys, I don't know if they are used at all on any modern keyboards*/
+#define EXTENDED_KEYS 128 /* Even more odd keys, I don't think anyone really needs this */
+#define MOUSE 256         /* Mouse support*/
 #define SIXTY_PERCENT_KEY REGULAR_KEYS
 #define TENKEYLESS (REGULAR_KEYS | FUNCTION_KEYS)
 #define FULL_LAYOUT (REGULAR_KEYS | FUNCTION_KEYS | NUMPAD_KEYS | MEDIA_KEYS)
-#define EXTENDED_LAYOUT (REGULAR_KEYS | FUNCTION_KEYS | NUMPAD_KEYS | MEDIA_KEYS | INTL_KEYS | KEYPAD_SPECIAL | EXTENDED_KEYS)
+#define EXTENDED_LAYOUT (REGULAR_KEYS | FUNCTION_KEYS | NUMPAD_KEYS | MEDIA_KEYS | uint32_tL_KEYS | KEYPAD_SPECIAL | EXTENDED_KEYS)
 
-inputs* create_inputs_struct(void)
+/*
+ * @brief Creates a struct that can be used to send inputs
+ * 
+ * @param flags The flags that specify what keys to register (see REGULAR_KEYS, FUNCTION_KEYS, NUMPAD_KEYS, OTHER_KEYS, MEDIA_KEYS, uint32_tL_KEYS, KEYPAD_SPECIAL, EXTENDED_KEYS, MOUSE)
+*/
+inputs* create_inputs_struct(uint32_t flags)
 {
     inputs* inp;
     inp = (inputs*)malloc(sizeof(inputs));
-    #ifndef _WIN32
+#ifndef _WIN32
     inp->fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
     if (inp->fd < 0)
         return NULL;
     memset(&inp->usetup, 0, sizeof(inp->usetup));
-    strncpy(inp->usetup.name, "virtual-keyboard", UINPUT_MAX_NAME_SIZE);
+    strncpy(inp->usetup.name, "virtual-Input-Device", UINPUT_MAX_NAME_SIZE);
     inp->usetup.id.bustype = BUS_USB;
     inp->usetup.id.vendor = 0x0001;
     inp->usetup.id.product = 0x0001;
 
     ioctl(inp->fd, UI_SET_EVBIT, EV_KEY);
 
+    /* The default in case flags are not set */
+    if (flags == 0)
+        flags = FULL_LAYOUT | MOUSE;
+
+    usleep(100000);
+    if (flags & REGULAR_KEYS)
+    {
+        register_regular_keys(inp);
+    }
+    if (flags & FUNCTION_KEYS)
+    {
+        register_function_keys(inp);
+    }
+    if (flags & NUMPAD_KEYS)
+    {
+        register_numpad_keys(inp);
+    }
+    if (flags & OTHER_KEYS)
+    {
+        register_other_key(inp);
+    }
+    if (flags & MEDIA_KEYS)
+    {
+        register_media_keys(inp);
+    }
+    if (flags & uint32_tL_KEYS)
+    {
+        register_uint32_tl_keys(inp);
+    }
+    if (flags & KEYPAD_SPECIAL)
+    {
+        register_keypad_special_keys(inp);
+    }
+    if (flags & MOUSE)
+    {
+        register_mouse_keys(inp);
+    }
+
     ioctl(inp->fd, UI_DEV_SETUP, &inp->usetup);
     ioctl(inp->fd, UI_DEV_CREATE);
-
-    /* This should do the trick for a small delay with volatile */
-    volatile int i;
-    for (i = 0; i <1000000; i+=1);
     #endif
     /* By default */
     inp->last_input_result=0;
     return inp;
 }
 
-void send_key(inputs* inp, int key, int mod, int flags)
+/*  Sends a key press and release event 
+    For specific key presses and releases use send_key_press and send_key_release
+    Please see MODIFIERS for valid values of mods
+*/
+void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
 {
+#ifdef _WIN32
+    if (flags == SDL_INPUT)
+    {
+        key = convertSDL2KeyToWIN32(key);
+    }
+    /* The actual key takes a place */
+    uint32_t cInputs = 1;
+    uint32_t i;
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            cInputs += 1;
+        }
+    }
+    cInputs *= 2;
+    INPUT inputs[cInputs];
+    ZeroMemory(inputs, sizeof(inputs));
+    uint32_t cv = 0;
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            inputs[cv].type = INPUT_KEYBOARD;
+            inputs[cv].ki.wVk = MOD_KEYS[i];
+            cv += 1;
+        }
+    }
+    inputs[cv].type = INPUT_KEYBOARD;
+    inputs[cv].ki.wVk = key;
+    cv += 1;
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            inputs[cv].type = INPUT_KEYBOARD;
+            inputs[cv].ki.wVk = MOD_KEYS[i];
+            inputs[cv].ki.dwFlags = KEYEVENTF_KEYUP;
+            cv += 1;
+        }
+    }
+    inputs[cv].type = INPUT_KEYBOARD;
+    inputs[cv].ki.wVk = key;
+    inputs[cv].ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(cInputs, inputs, sizeof(INPUT));
+    //Sleep(10);
+    //SendInput(cInputs/2, inputs + cInputs/2, sizeof(INPUT));
+#endif
 #ifndef _WIN32
 
     if (flags == SDL_INPUT)
     {
         key = convertSDL2KeyToUInput(key);
-        mod = convertSDL2ModToUInput(mod);
     }
     memset(&inp->ev_key, 0, sizeof(inp->ev_key));
     memset(&inp->ev_mod, 0, sizeof(inp->ev_mod));
@@ -656,24 +975,148 @@ void send_key(inputs* inp, int key, int mod, int flags)
         inp->ev_mod.code = mod;
         inp->ev_mod.value = 1;
         write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
-
         send_syn(inp);
     }
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = key;
     inp->ev_key.value = 1;
+    usleep(1000);
     write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     if (mod != 0)
     {
         inp->ev_mod.value = 0;
         write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
-
         send_syn(inp);
     }
     inp->ev_key.value = 0;
     write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
 
+    send_syn(inp);
+#endif
+}
+
+/* Sends a key press event */
+void send_key_press(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
+{
+#ifdef _WIN32
+    if (flags == SDL_INPUT)
+    {
+        key = convertSDL2KeyToWIN32(key);
+    }
+    uint32_t cInputs;
+    uint32_t i;
+    /* The actual key */
+    cInputs = 1;
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            cInputs += 1;
+        }
+    }
+    INPUT inputs[cInputs];
+    ZeroMemory(inputs, sizeof(inputs));
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            inputs[i].type = INPUT_KEYBOARD;
+            inputs[i].ki.wVk = MOD_KEYS[i];
+            inputs[i].ki.dwFlags = 0;
+        }
+    }
+    inputs[cInputs - 1].type = INPUT_KEYBOARD;
+    inputs[cInputs - 1].ki.wVk = key;
+    inputs[cInputs - 1].ki.dwFlags = 0;
+    SendInput(cInputs, inputs, sizeof(INPUT));
+#endif
+#ifndef _WIN32
+    if (flags == SDL_INPUT)
+    {
+        key = convertSDL2KeyToUInput(key);
+    }
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    memset(&inp->ev_mod, 0, sizeof(inp->ev_mod));
+    uint32_t i;
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            inp->ev_mod.type = EV_KEY;
+            inp->ev_mod.code = MOD_KEYS[i];
+            inp->ev_mod.value = 1;
+            write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+            send_syn(inp);
+        }
+    }
+    inp->ev_key.type = EV_KEY;
+    inp->ev_key.code = key;
+    inp->ev_key.value = 1;
+    usleep(1000);
+    write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+#endif
+}
+
+void send_key_release(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
+{
+#ifdef _WIN32
+    if (flags == SDL_INPUT)
+    {
+        key = convertSDL2KeyToWIN32(key);
+    }
+    uint32_t cInputs;
+    uint32_t i;
+    /* The actual key */
+    cInputs = 1;
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            cInputs += 1;
+        }
+    }
+    INPUT inputs[cInputs];
+    ZeroMemory(inputs, sizeof(inputs));
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            inputs[i].type = INPUT_KEYBOARD;
+            inputs[i].ki.wVk = MOD_KEYS[i];
+            inputs[i].ki.dwFlags = KEYEVENTF_KEYUP;
+        }
+    }
+    inputs[cInputs - 1].type = INPUT_KEYBOARD;
+    inputs[cInputs - 1].ki.wVk = key;
+    inputs[cInputs - 1].ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(cInputs, inputs, sizeof(INPUT));
+#endif
+#ifndef _WIN32
+    if (flags == SDL_INPUT)
+    {
+        key = convertSDL2KeyToUInput(key);
+    }
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    memset(&inp->ev_mod, 0, sizeof(inp->ev_mod));
+    uint32_t i;
+    for (i = 0; i < 12; i+=1)
+    {
+        if (mods & MODIFIERS[i])
+        {
+            inp->ev_mod.type = EV_KEY;
+            inp->ev_mod.code = MOD_KEYS[i];
+            inp->ev_mod.value = 1;
+            write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+            send_syn(inp);
+        }
+    }
+    inp->ev_key.type = EV_KEY;
+    inp->ev_key.code = key;
+    inp->ev_key.value = 1;
+    usleep(1000);
+    write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
 #endif
 }
