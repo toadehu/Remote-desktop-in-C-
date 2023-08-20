@@ -8,6 +8,7 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <WS2tcpip.h>
+#include <ws2tcpip.h>
 #define socklen_t int
 
 /*The inconsistencies are so fun*/
@@ -56,7 +57,6 @@ typedef struct TCP_Socket
     int port;                   /* Port number*/
     char* buffer;               /* Buffer for data*/
     __int32_t buffer_len;       /* Length of the buffer*/
-    receiver_t *receiver;       /* Receiver structure for buffering received data*/
     fd_set master_fds, read_fds;/* File descriptor set for select(), and a master file descriptor */
 } TCP_SOCKET;
 
@@ -109,7 +109,7 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
         server->buffer_len = buffer_default_size;
     }
 
-    if (server->tcp_socket == -1)
+    if (server->tcp_socket == SOCKET_ERROR)
     {
         printf("Error creating socket, you should reconsider what you are doing\n");
         free(server);
@@ -121,8 +121,6 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
     {
         return server;
     }
-
-    server->receiver = NULL;
 
     /* Binding the socket to the port and to the addresses*/
     memset(&server->server, 0, sizeof(server->server));
@@ -166,7 +164,7 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
             struct sockaddr_in clientAddr;
             socklen_t clientAddrLen = sizeof(clientAddr);
 
-            // Retrieve the client's address information
+            // Retrieve the client s address information
             if (getpeername(client_socket, (struct sockaddr *)&clientAddr, &clientAddrLen) == -1) {
                 perror("getpeername");
                 return NULL;
@@ -251,7 +249,7 @@ int TCP_SOCKET_connect_from_string(struct TCP_Socket* sock, char* ipaddr, int po
 
                 con = connect(sock->tcp_socket, (struct sockaddr*)(&server), sizeof(server));
             }
-            // inet_pton failed
+            /* inet_pton failed */
             else
             {
                 return -1;
