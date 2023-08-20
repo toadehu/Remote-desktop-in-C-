@@ -47,7 +47,6 @@ text_element* new_text_element(char* font_path, int font_size, SDL_Color color, 
         printf("Error: %s\n", SDL_GetError());
         return NULL;
     }
-    //return NULL;
     new_text -> text_color = color;
     new_text -> text_surface = TTF_RenderText_Blended(new_text -> font, text, new_text -> text_color);
     if (new_text->text_surface == NULL)
