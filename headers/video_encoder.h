@@ -657,14 +657,6 @@ void resize_image_bilinear_YUV420(const byte *src, byte **dst, int src_width, in
     int src_plane_size = src_width * src_height;
     int dst_plane_size = dst_width * dst_height;
     
-    if (*old_dst_size < dst_plane_size * 3/2 || dst == NULL) /* 1.5 = YUV420 has 1.5 bytes per pixel */
-    {
-        *old_dst_size = dst_plane_size * 3/2;
-        printf("Reallocating dst to %d bytes\n", *old_dst_size);
-        *dst = (byte*)realloc(*dst, *old_dst_size);
-        printf("Reallocated %p to %d bytes\n", *dst, *old_dst_size);
-    }
-
     /* Perform bilinear resizing separately for each plane
        Note: bilinear_interpolate_YUV420 should also be implemented */
     bilinear_resize_plane(&src[0], &(*dst)[0], src_width, src_height, dst_width, dst_height, x_ratio, y_ratio);
