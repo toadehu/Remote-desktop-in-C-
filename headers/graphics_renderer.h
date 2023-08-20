@@ -4,6 +4,7 @@
 
 #define BACKGROUND_FROM_FILE 1
 #define BACKGROUND_FROM_DATA 2
+#define _TEXTURE_STREAMLINED 0x10
 
 typedef struct _GRAPHICS_RENDERER 
 {
@@ -42,7 +43,7 @@ typedef struct _GRAPHICS_RENDERER
 
 }GRAPHICS_RENDERER;
 
-void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect, void* rest)
+void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect)
 {
     if (backg_rect->w != window_rect.w || backg_rect->h != window_rect.h)
     {
