@@ -656,7 +656,7 @@ void resize_image_bilinear_YUV420(const byte *src, byte **dst, int src_width, in
 
     int src_plane_size = src_width * src_height;
     int dst_plane_size = dst_width * dst_height;
-    
+
     /* Perform bilinear resizing separately for each plane
        Note: bilinear_interpolate_YUV420 should also be implemented */
     bilinear_resize_plane(&src[0], &(*dst)[0], src_width, src_height, dst_width, dst_height, x_ratio, y_ratio);
@@ -841,14 +841,6 @@ void* thread_func(void *arg)
 */
 void resize_image_bilinear_multithread(const char *src, char **dst, int src_width, int src_height, int dst_width, int dst_height, int channels, int NUM_THREADS)
 {
-    if (*old_dst_size < dst_width * dst_height * channels || dst == NULL)
-    {
-        *old_dst_size = dst_width * dst_height * channels;
-        printf("Reallocating dst to %d bytes\n", *old_dst_size);
-        *dst = (char*)realloc((void*)*dst, *old_dst_size);
-        printf("Reallocated %p to %d bytes\n", *dst, *old_dst_size);
-    }
-
     if (NUM_THREADS > MAX_THREADS)
     {
         NUM_THREADS = MAX_THREADS;
