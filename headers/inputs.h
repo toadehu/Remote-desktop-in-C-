@@ -32,7 +32,7 @@
 #define SDLK_TO_UINPUT_Z      KEY_Z
 
 
-// Numeric keys
+/* Numeric keys */
 #define SDLK_TO_UINPUT_0      KEY_0
 #define SDLK_TO_UINPUT_1      KEY_1
 #define SDLK_TO_UINPUT_2      KEY_2
@@ -45,17 +45,17 @@
 #define SDLK_TO_UINPUT_9      KEY_9
 
 
-// Modifier keys
+/* Modifier keys */
 #define SDLK_TO_UINPUT_LSHIFT KEY_LEFTSHIFT
 #define SDLK_TO_UINPUT_RSHIFT KEY_RIGHTSHIFT
 #define SDLK_TO_UINPUT_LCTRL  KEY_LEFTCTRL
 #define SDLK_TO_UINPUT_RCTRL  KEY_RIGHTCTRL
 #define SDLK_TO_UINPUT_LALT   KEY_LEFTALT
 #define SDLK_TO_UINPUT_RALT   KEY_RIGHTALT
-#define SDLK_TO_UINPUT_LGUI   KEY_LEFTMETA   // Left "Windows" or "Command" key
-#define SDLK_TO_UINPUT_RGUI   KEY_RIGHTMETA  // Right "Windows" or "Command" key
+#define SDLK_TO_UINPUT_LGUI   KEY_LEFTMETA   /* Left "Windows" or "Command" key */
+#define SDLK_TO_UINPUT_RGUI   KEY_RIGHTMETA  /* Right "Windows" or "Command" key */
 
-// Arrow keys
+/* Arrow keys */
 #define SDLK_TO_UINPUT_UP     KEY_UP
 #define SDLK_TO_UINPUT_DOWN   KEY_DOWN
 #define SDLK_TO_UINPUT_LEFT   KEY_LEFT
@@ -210,9 +210,9 @@
 #define SDLK_KP_DECIMAL 1073741978
 #define SDLK_KP_HEXADECIMAL 1073741979
 
-/* uint32_ternational keys */
-#define SDLK_WORLD_1 161 // non-US #1
-#define SDLK_WORLD_2 162 // non-US #2
+/* international keys */
+#define SDLK_WORLD_1 161 /* non-US 1 */
+#define SDLK_WORLD_2 162 /* non-US 2 */
 #define SDLK_THOUSANDSSEPARATOR 1073741952
 #define SDLK_DECIMALSEPARATOR 1073741953
 #define SDLK_CURRENCYUNIT 1073741954
@@ -433,10 +433,10 @@ uint32_t convertSDL2ModToWIN32(uint32_t mod)
 #include <string.h>
 #include <unistd.h>
 
-uint32_t32_t MOD_KEYS[12] = {KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_RIGHTCTRL, KEY_LEFTALT, KEY_RIGHTALT, KEY_LEFTMETA, KEY_RIGHTMETA, KEY_NUMLOCK, KEY_CAPSLOCK, KEY_MODE, KEY_SCROLLLOCK};
+uint32_t MOD_KEYS[12] = {KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_RIGHTCTRL, KEY_LEFTALT, KEY_RIGHTALT, KEY_LEFTMETA, KEY_RIGHTMETA, KEY_NUMLOCK, KEY_CAPSLOCK, KEY_MODE, KEY_SCROLLLOCK};
 
 /* This only extracts the key */
-uint32_t32_t convertSDL2KeyToUInput(uint32_t32_t keycode)
+uint32_t convertSDL2KeyToUInput(uint32_t keycode)
 {
     /* Regular keys needs to be changed to switch */
     switch (keycode)
@@ -618,7 +618,7 @@ uint32_t32_t convertSDL2KeyToUInput(uint32_t32_t keycode)
 }
 
 /* This extracts the modifier too */
-uint32_t32_t convertSDL2ModToUInput(uint32_t32_t mod)
+uint32_t convertSDL2ModToUInput(uint32_t mod)
 {
     switch(mod)
     {
@@ -633,7 +633,7 @@ uint32_t32_t convertSDL2ModToUInput(uint32_t32_t mod)
         case KMOD_NUM    : return KEY_NUMLOCK;
         case KMOD_CAPS   : return KEY_CAPSLOCK;
         case KMOD_MODE   : return KEY_MODE;
-        case KMOD_SCROLL   : return KEY_SCROLL;
+        case KMOD_SCROLL   : return KEY_SCROLLLOCK;
         default: return 0;
     }
 }
@@ -792,7 +792,18 @@ void register_other_key(inputs* inp)
     ioctl(inp->fd, UI_SET_KEYBIT, KEY_MUTE);
 }
 
-void register_uint32_tl_keys(inputs* inp)
+void register_media_keys(inputs* inp)
+{
+    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PLAYPAUSE);
+    ioctl(inp->fd, UI_SET_KEYBIT, KEY_MUTE);
+    ioctl(inp->fd, UI_SET_KEYBIT, KEY_NEXTSONG);
+    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PREVIOUS);
+    ioctl(inp->fd, UI_SET_KEYBIT, KEY_STOPCD);
+    ioctl(inp->fd, UI_SET_KEYBIT, KEY_VOLUMEUP);
+    ioctl(inp->fd, UI_SET_KEYBIT, KEY_VOLUMEDOWN);
+}
+
+void register_intl_keys(inputs* inp)
 {
     ioctl(inp->fd, UI_SET_KEYBIT, KEY_LEFTCTRL); /* What is this key for? */
     ioctl(inp->fd, UI_SET_KEYBIT, KEY_RIGHTCTRL); /* What is this key for? */
@@ -888,7 +899,7 @@ inputs* create_inputs_struct(uint32_t flags)
     }
     if (flags & uint32_tL_KEYS)
     {
-        register_uint32_tl_keys(inp);
+        register_intl_keys(inp);
     }
     if (flags & KEYPAD_SPECIAL)
     {
@@ -913,6 +924,7 @@ inputs* create_inputs_struct(uint32_t flags)
 */
 void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
 {
+    uint32_t i;
 #ifdef _WIN32
     if (flags == SDL_INPUT)
     {
@@ -920,7 +932,6 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     }
     /* The actual key takes a place */
     uint32_t cInputs = 1;
-    uint32_t i;
     for (i = 0; i < 12; i+=1)
     {
         if (mods & MODIFIERS[i])
@@ -969,13 +980,20 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     }
     memset(&inp->ev_key, 0, sizeof(inp->ev_key));
     memset(&inp->ev_mod, 0, sizeof(inp->ev_mod));
-    if (mod != 0)
+    if (mods != 0)
     {
-        inp->ev_mod.type = EV_KEY;
-        inp->ev_mod.code = mod;
-        inp->ev_mod.value = 1;
-        write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
-        send_syn(inp);
+        for (i = 0; i < 12; i+=1)
+        {
+            if (mods & MODIFIERS[i])
+            {
+                inp->ev_mod.type = EV_KEY;
+                inp->ev_mod.code = MOD_KEYS[i];
+                inp->ev_mod.value = 1;
+                write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+                send_syn(inp);
+                usleep(100);
+            }
+        }
     }
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = key;
@@ -983,11 +1001,20 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     usleep(1000);
     write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
-    if (mod != 0)
+    if (mods != 0)
     {
-        inp->ev_mod.value = 0;
-        write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
-        send_syn(inp);
+        for (i = 0; i < 12; i+=1)
+        {
+            if (mods & MODIFIERS[i])
+            {
+                inp->ev_mod.type = EV_KEY;
+                inp->ev_mod.code = MOD_KEYS[i];
+                inp->ev_mod.value = 0;
+                write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+                send_syn(inp);
+                usleep(100);
+            }
+        }
     }
     inp->ev_key.value = 0;
     write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
