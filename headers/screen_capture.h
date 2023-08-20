@@ -9,6 +9,9 @@
 
 #include <windows.h>
 #include <wingdi.h>
+#include <dxgi1_2.h>
+#include <d3d11.h>
+#include <wincodec.h>
 #include "memoryapi.h"
 
 #elif __linux__
@@ -155,6 +158,16 @@ static const struct wl_output_listener output_listener = {
 
 #endif
 
+#ifdef _WIN32
+typedef struct ScreenCaptureDX 
+{
+    ID3D11Device* d3d_device;
+    ID3D11DeviceContext* d3d_context;
+    IDXGIOutputDuplication* duplication;
+    ID3D11Texture2D* screen_texture;
+} ScreenCaptureDX;
+#endif
+
 typedef struct SCREEN_CAPTURE
 {
     int placeholder; /*place holder for something*/
@@ -257,7 +270,7 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
         char* row1 = (*_buffer) + i * rowSize;
         char* row2 = (*_buffer) + j * rowSize;
 
-        // Swap rows using a temporary buffer
+        /* Swap rows using a temporary buffer */
         memcpy(tempRow, row1, rowSize);
         memcpy(row1, row2, rowSize);
         memcpy(row2, tempRow, rowSize);
