@@ -220,7 +220,7 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
     GetCursorPos(&cursorPos);
     int cursorX = cursorPos.x;
     int cursorY = cursorPos.y;
-    CURSORINFO cursorInfo = { sizeof(CURSORINFO) };
+    CURSORINFO cursorInfo = { };
     GetCursorInfo(&cursorInfo);
 
     /* Capture the cursor if it is visible*/
@@ -238,7 +238,6 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
         /* Create a bitmap for the cursor and select it into a device context*/
         HDC hdcCursor = CreateCompatibleDC(hdcScreen);
         HBITMAP hbmCursor = CreateBitmap(cursorWidth, cursorHeight, 1, 32, NULL);
-        HGDIOBJ oldCursorObj = SelectObject(hdcCursor, hbmCursor);
 
         /* Draw the cursor into the bitmap*/
         DrawIconEx(hdcCursor, 0, 0, cursorInfo.hCursor, cursorWidth, cursorHeight, 0, NULL, DI_NORMAL);
