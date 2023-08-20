@@ -36,6 +36,8 @@ enum frame_type
 #define CLICK_OEM1 5
 #define CLICK_OEM2 6
 
+#ifdef _MSC_VER
 #ifdef _WIN32
 #pragma comment(lib, "msvcrt.lib")
+#endif
 #endif
