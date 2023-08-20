@@ -858,6 +858,10 @@ void register_mouse_keys(inputs* inp)
 */
 inputs* create_inputs_struct(uint32_t flags)
 {
+    if (flags == 0)
+    {
+        flags = FULL_LAYOUT | MOUSE;
+    }
     inputs* inp;
     inp = (inputs*)malloc(sizeof(inputs));
 #ifndef _WIN32
@@ -871,10 +875,6 @@ inputs* create_inputs_struct(uint32_t flags)
     inp->usetup.id.product = 0x0001;
 
     ioctl(inp->fd, UI_SET_EVBIT, EV_KEY);
-
-    /* The default in case flags are not set */
-    if (flags == 0)
-        flags = FULL_LAYOUT | MOUSE;
 
     usleep(100000);
     if (flags & REGULAR_KEYS)
@@ -969,8 +969,6 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     inputs[cv].ki.wVk = key;
     inputs[cv].ki.dwFlags = KEYEVENTF_KEYUP;
     SendInput(cInputs, inputs, sizeof(INPUT));
-    //Sleep(10);
-    //SendInput(cInputs/2, inputs + cInputs/2, sizeof(INPUT));
 #endif
 #ifndef _WIN32
 
