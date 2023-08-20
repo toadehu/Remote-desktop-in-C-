@@ -26,8 +26,6 @@ typedef uint64_t __uint64_t;
 #define INVALID_SOCKET -1
 #endif
 
-#include "buffer_receiver.h"
-
 const int buffer_default_size = 1024 * 32;    /* 32 KiB */
 const int buffer_big_size     = 1024 * 1024; /* 1 MiB  */
 const int buffer_small_size   = 1024;       /* 1 KiB  */
@@ -45,21 +43,6 @@ const int buffer_small_size   = 1024;       /* 1 KiB  */
 /* An arbitrary value for the MSS (Maximum Segment Size)*/
 #define MSS 256
 #define HDR_TYPE __uint64_t
-
-/*
- The first byte of the packet will say what type of information it can contain. Here is how information is encoded:
-                        1   1   1   1   1   1   1   1
-                        ^   ^   ^   ^   ^   ^   ^   ^
-                        |   |   |   |   |   |   |   |
-                        |   |   |   |   |   |   |   It's a new frame
-                        |   |   |   |   |   |   It's a mouse input, the mouse moved
-                        |   |   |   |   |   It's a mouse input, either left or right click
-                        |   |   |   |   It's a mouse scroll
-                        |   |   |   It's a different mouse button, oem defined instruction, or something of this sort
-                        |   |   Keyboard input
-                        |   Undefined at the moment
-                        It's the first packet for connection & authentification
-*/
 
 /**
  * Structure representing a TCP socket.
@@ -133,7 +116,7 @@ TCP_SOCKET *TCP_SOCKET_create(int port, int ip_listen, bool start_listen, int ma
         return NULL;
     }
 
-    //if it's a client socket, it doesn't need any of the other stuff
+    /* if it's a client socket, it doesn't need any of the other stuff */
     if (flags & CLIENT)
     {
         return server;
@@ -559,7 +542,9 @@ int find_hot_socket_with_timeout(TCP_SOCKET *sock, int32_t microseconds)
     sock->read_fds = sock->master_fds;
 
     int max_fd = sock->tcp_socket;
-    for (int i = 0; i < sock->client_num; i+=1)
+
+    int i;
+    for (i = 0; i < sock->client_num; i+=1)
     {
         FD_SET(sock->client[i], &sock->read_fds);
         if (sock->client[i] > max_fd)
@@ -593,7 +578,6 @@ int find_hot_socket_with_timeout(TCP_SOCKET *sock, int32_t microseconds)
         return INT32_MAX;
     }
 
-    int i;
     for (i = 0; i < sock->client_num; i+=1)
     {
         if (FD_ISSET(sock->client[i], &sock->read_fds))
