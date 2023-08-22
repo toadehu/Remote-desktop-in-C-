@@ -704,6 +704,7 @@ void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int src_w
     {
         for (dst_x = 0; dst_x < target_width; dst_x+=8)
         {
+            int ind = (dst_y + y_offset) * dst_width + dst_x + x_offset;;
             for (x = 0; x < 8 && (x + dst_x) < target_width; x++)
             {
                 float src_x = (x + dst_x) * x_ratio;
@@ -713,10 +714,10 @@ void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int src_w
                 {
                     if (channel == 3)
                     {
-                        dst[((dst_y + y_offset) * dst_width + x + dst_x + x_offset) * channels + channel] = 255;
+                        dst[(ind + x) * channels + channel] = 255;
                         continue;
                     }
-                    dst[((dst_y + y_offset) * dst_width + x + dst_x + x_offset) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
+                    dst[(ind + x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
                 }
             }
         }
@@ -734,6 +735,76 @@ void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int src_w
                     continue;
                 }
                 dst[((dst_y + y_offset) * dst_width + dst_x + x_offset) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
+            }
+        }
+    }
+}
+
+/**
+ * @brief This is marginally faster than resize_image_bilinear_preserve_aspect 
+*/
+void resize_image_bilinear_blocks_preserve_aspect(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+{
+    /* Calculate aspect ratios */
+    double src_aspect_ratio = (double)src_width / (double)src_height;
+    double dst_aspect_ratio = (double)dst_width / (double)dst_height;
+
+    int target_width, target_height, x_offset = 0, y_offset = 0;
+    
+    /* The destination aspect ratio is wider than the source */
+    if (dst_aspect_ratio > src_aspect_ratio) 
+    {
+        target_height = dst_height - dst_height % 18;
+        target_width = (int)(dst_height * src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
+    }
+    /* The destination aspect ratio is taller than the source */ 
+    else
+    {
+        target_width = dst_width - dst_width % 16;
+        target_height = (int)(dst_width / src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
+    }
+
+    float x_ratio = (float)(src_width) / (float)target_width;
+    float y_ratio = (float)(src_height) / (float)target_height;
+
+    /* Initialize the destination to black */
+    memset(dst, 0, dst_width * dst_height * channels);
+
+    const int BLOCK_SIZE = 8;
+
+    int block_start_y, block_start_x, block_end_x, block_end_y, dst_y, dst_x, x, channel;
+    for (block_start_y = 0; block_start_y < target_height; block_start_y += BLOCK_SIZE) 
+    {
+        for (block_start_x = 0; block_start_x < target_width; block_start_x += BLOCK_SIZE) 
+        {
+            int block_end_x = block_start_x + BLOCK_SIZE > target_width ? target_width : block_start_x + BLOCK_SIZE;
+            int block_end_y = block_start_y + BLOCK_SIZE > target_height ? target_height : block_start_y + BLOCK_SIZE;
+            
+            for (dst_y = block_start_y; dst_y < block_end_y; dst_y++)
+            {
+                for (dst_x = block_start_x; dst_x < block_end_x; dst_x++)
+                {
+                    float src_x = dst_x * x_ratio;
+                    float src_y = dst_y * y_ratio;
+
+                    int base_index = (dst_y + y_offset) * dst_width + dst_x + x_offset;
+
+                    for (channel = 0; channel < channels; channel++)
+                    {
+                        if (channel == 3)
+                        {
+                            dst[base_index * channels + channel] = 255;
+                        }
+                        else
+                        {
+                            dst[base_index * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
+                        }
+                    }
+                }
             }
         }
     }
@@ -855,5 +926,80 @@ void resize_image_nearest_neighbor_preserve_aspect(const byte *src, byte *dst, i
                 dst[((dst_y + y_offset) * dst_width + dst_x + x_offset) * channels + channel] = src[(src_y * src_width + src_x) * channels + channel];
             }
         }
+    }
+}
+
+/**
+ * @brief Gets the good zoom coordinates for the given zoom ratio
+ * 
+ * @param src_width The width of the source image
+ * @param src_height The height of the source image
+ * @param zoom_x The x coordinate of the center point
+ * @param zoom_y The y coordinate of the center point
+ * @param zoom_ratio The zoom ratio
+ * @param x The x coordinate of the center point after zooming
+*/
+void get_zoom_coords(int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio, int* x. int *y)
+{
+    int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
+    /* Adjust centers to the minimum positions */
+    if (zoom_x < dst_width/2)
+    {
+        zoom_x = dst_width/2;
+    }
+    else if (zoom_x > src_width - dst_width/2)
+    {
+        zoom_x = src_width - dst_width/2;
+    }
+    if (zoom_y < dst_height/2)
+    {
+        zoom_y = dst_height/2;
+    }
+    else if (zoom_y > src_height - dst_height/2)
+    {
+        zoom_y = src_height - dst_height/2;
+    }
+    *x=zoom_x;
+    *y=zoom_y;
+}
+
+/**
+ * @brief Zooms in the image at the given center point by the given zoom ratio
+ * This functions assumes 4 channels (ARGB)
+ * 
+ * @param src The source image
+ * @param dst The destination image
+ * @param src_width The width of the source image
+ * @param src_height The height of the source image
+ * @param zoom_x The x coordinate of the center point
+ * @param zoom_y The y coordinate of the center point
+ * @param zoom_ratio The zoom ratio
+*/
+void zoom_image(const byte **src, byte** dst, int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio)
+{
+    int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
+    /* Adjust centers to the minimum positions */
+    if (zoom_x < dst_width/2)
+    {
+        zoom_x = dst_width/2;
+    }
+    else if (zoom_x > src_width - dst_width/2)
+    {
+        zoom_x = src_width - dst_width/2;
+    }
+    if (zoom_y < dst_height/2)
+    {
+        zoom_y = dst_height/2;
+    }
+    else if (zoom_y > src_height - dst_height/2)
+    {
+        zoom_y = src_height - dst_height/2;
+    }
+    int x_start = zoom_x - dst_width/2, y_start = zoom_y - dst_height/2;
+    int x_end = zoom_x + dst_width/2, y_end = zoom_y + dst_height/2;
+    int i,j;
+    for (i = x_start; i < x_end; i+=1)
+    {
+        memcpy(&dst[(i - x_start) * dst_height], &src[(i * src_height + y_start) * 4], dst_height * 4);
     }
 }
