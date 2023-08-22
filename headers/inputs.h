@@ -1347,7 +1347,7 @@ void send_mouse_scroll_horizontal(inputs* inp, int amount)
     INPUT scroll;
     ZeroMemory(&scroll, sizeof(INPUT));
     scroll.type = INPUT_MOUSE;
-    scroll.mi.dwFlags = MOUSEEVENTF_HWHEEL;
+    scroll.mi.dwFlags = MOUSEEVENTF_WHEEL;
     scroll.mi.mouseData = amount;
     SendInput(1, &scroll, sizeof(INPUT));
     usleep(100);
@@ -1355,7 +1355,7 @@ void send_mouse_scroll_horizontal(inputs* inp, int amount)
 #else
     memset(&inp->ev_key, 0, sizeof(inp->ev_key));
     inp->ev_key.type = EV_REL;
-    inp->ev_key.code = REL_HWHEEL;
+    inp->ev_key.code = REL_WHEEL;
     inp->ev_key.value = amount;
     write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
