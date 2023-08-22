@@ -81,7 +81,7 @@ GRAPHICS_RENDERER* create_graphics_renderer(int w, int h, char* Name, char* img_
     else if (flags & BACKGROUND_FROM_DATA)
         background = create_new_image_element(graphics_renderer -> renderer, NULL, 0, 0, w, h, update_background_rectangle, TEXTURE_STREAMLINED);
 	else /* Lazy default */
-		background = create_new_image_element(graphics_renderer -> renderer, (char*)"img.jpg", 0, 0, 0, 0, update_background_rectangle, 0);
+		background = create_new_image_element(graphics_renderer -> renderer, NULL, 0, 0, 0, 0, update_background_rectangle, TEXTURE_STREAMLINED);
 
 
     graphics_renderer -> images[0] = (image_element**)malloc(sizeof(image_element*));
