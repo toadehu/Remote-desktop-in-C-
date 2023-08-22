@@ -245,6 +245,11 @@
 #define KMOD_MODE 0x4000
 #define KMOD_SCROLL 0x8000
 
+#define KMOD_SHIFT KMOD_LSHIFT | KMOD_RSHIFT
+#define KMOD_CTRL KMOD_LCTRL | KMOD_RCTRL
+#define KMOD_ALT KMOD_LALT | KMOD_RALT
+#define KMOD_GUI KMOD_LGUI | KMOD_RGUI
+
 uint32_t MODIFIERS[12] = {KMOD_LSHIFT, KMOD_RSHIFT, KMOD_LCTRL, KMOD_RCTRL, KMOD_LALT, KMOD_RALT, KMOD_LGUI, KMOD_RGUI, KMOD_NUM, KMOD_CAPS, KMOD_MODE, KMOD_SCROLL};
 
 #ifdef _WIN32
@@ -432,6 +437,9 @@ uint32_t convertSDL2ModToWIN32(uint32_t mod)
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+
+/* One day I will add Wayland support, maybe */
+#include <X11/Xlib.h>
 
 uint32_t MOD_KEYS[12] = {KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_RIGHTCTRL, KEY_LEFTALT, KEY_RIGHTALT, KEY_LEFTMETA, KEY_RIGHTMETA, KEY_NUMLOCK, KEY_CAPSLOCK, KEY_MODE, KEY_SCROLLLOCK};
 
@@ -647,7 +655,8 @@ uint32_t convertSDL2ModToUInput(uint32_t mod)
 
 typedef struct inputs
 {
-    uint32_t fd;
+    int screen_w, screen_h;
+    uint32_t fd_keybd, fd_mouse;
 #ifdef _WIN32
     /* This is to press and release a key*/
     INPUT inputs[2];
@@ -656,15 +665,18 @@ typedef struct inputs
 #ifndef _WIN32
     struct uinput_setup usetup;
     struct input_event ev_key, ev_mod;
+    Display* display;
+    Screen* screen;
+    Window root_window;
 #endif
     uint32_t last_input_result;
 }inputs;
 
 #ifndef _WIN32
-void send_syn(inputs* inp) 
+void send_syn(inputs* inp)
 {
     struct input_event ev_syn = { .type = EV_SYN, .code = SYN_REPORT, .value = 0 };
-    if (write(inp->fd, &ev_syn, sizeof(ev_syn)) == -1) {
+    if (write(inp->fd_keybd, &ev_syn, sizeof(ev_syn)) == -1) {
         /* perror("Error sending EV_SYN event"); */
     }
 }
@@ -672,166 +684,168 @@ void send_syn(inputs* inp)
 /* This needs to be done manually ig */
 void register_regular_keys(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_A);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_B);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_C);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_D);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_E);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_G);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_H);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_I);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_J);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_K);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_L);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_M);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_N);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_O);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_P);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_Q);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_R);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_S);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_T);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_U);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_V);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_W);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_X);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_Y);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_Z);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_0);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_1);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_2);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_3);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_4);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_5);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_6);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_7);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_8);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_9);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_LEFTCTRL);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_RIGHTCTRL);
-    ioctl(inp->fd, UI_SET_KEYBIT, SDLK_LCTRL);
-    ioctl(inp->fd, UI_SET_KEYBIT, SDLK_RCTRL);
-    ioctl(inp->fd, UI_SET_KEYBIT, SDLK_LALT);
-    ioctl(inp->fd, UI_SET_KEYBIT, SDLK_RALT);
-    ioctl(inp->fd, UI_SET_KEYBIT, SDLK_LGUI);
-    ioctl(inp->fd, UI_SET_KEYBIT, SDLK_RGUI);
-    ioctl(inp->fd, UI_SET_KEYBIT, SDLK_MODE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_ENTER);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_ESC);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_BACKSPACE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_TAB);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_SPACE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_UP);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_DOWN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_LEFT);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_RIGHT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_A);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_B);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_C);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_D);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_E);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_G);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_H);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_I);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_J);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_K);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_L);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_M);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_N);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_O);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_P);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_Q);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_R);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_S);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_T);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_U);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_V);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_W);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_X);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_Y);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_Z);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_0);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_1);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_2);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_3);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_4);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_5);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_6);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_7);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_8);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_9);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_LEFTCTRL);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_RIGHTCTRL);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_LCTRL);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_RCTRL);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_LALT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_RALT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_LGUI);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_RGUI);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_MODE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_ENTER);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_ESC);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_BACKSPACE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_TAB);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_SPACE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_UP);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_DOWN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_LEFT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_RIGHT);
 }
 
 /* The name is misleading, this also registers some more keys that are usually next to the numpad */
 void register_function_keys(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F1);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F2);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F3);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F4);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F5);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F6);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F7);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F8);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F9);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F10);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F11);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_F12);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_INSERT);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_HOME);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PAGEUP);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PAGEDOWN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_DELETE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_END);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F1);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F2);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F3);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F4);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F5);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F6);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F7);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F8);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F9);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F10);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F11);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_F12);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_INSERT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_HOME);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PAGEUP);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PAGEDOWN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_DELETE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_END);
 }
 
 void register_numpad_keys(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP0);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP1);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP2);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP3);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP4);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP5);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP6);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP7);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP8);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KP9);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPSLASH);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPASTERISK);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPMINUS);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPPLUS);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPENTER);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPDOT);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPEQUAL);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPCOMMA);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPEQUAL);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP0);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP1);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP2);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP3);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP4);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP5);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP6);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP7);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP8);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KP9);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPSLASH);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPASTERISK);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPMINUS);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPPLUS);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPENTER);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPDOT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPEQUAL);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPCOMMA);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPEQUAL);
 }
 
 void register_other_key(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PAUSE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_SYSRQ);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_COMPOSE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_HELP);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_MENU);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_SELECT);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_STOP);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_AGAIN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_UNDO);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_CUT);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_COPY);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PASTE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_FIND);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_MUTE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PAUSE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_SYSRQ);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_COMPOSE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_HELP);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_MENU);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_SELECT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_STOP);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_AGAIN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_UNDO);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_CUT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_COPY);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PASTE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_FIND);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_MUTE);
 }
 
 void register_media_keys(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PLAYPAUSE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_MUTE);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_NEXTSONG);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_PREVIOUS);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_STOPCD);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_VOLUMEUP);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_VOLUMEDOWN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PLAYPAUSE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_MUTE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_NEXTSONG);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PREVIOUS);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_STOPCD);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_VOLUMEUP);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_VOLUMEDOWN);
 }
 
 void register_intl_keys(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_LEFTCTRL); /* What is this key for? */
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_RIGHTCTRL); /* What is this key for? */
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_COMPOSE); /* What is this key? */
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_LEFTCTRL); /* What is this key for? */
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_RIGHTCTRL); /* What is this key for? */
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_COMPOSE); /* What is this key? */
 }
 
 void register_keypad_special_keys(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPLEFTPAREN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPRIGHTPAREN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPLEFTPAREN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPRIGHTPAREN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPLEFTPAREN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPRIGHTPAREN);
-    ioctl(inp->fd, UI_SET_KEYBIT, KEY_KPPLUSMINUS);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPLEFTPAREN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPRIGHTPAREN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPLEFTPAREN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPRIGHTPAREN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPLEFTPAREN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPRIGHTPAREN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_KPPLUSMINUS);
 }
 
 void register_mouse_keys(inputs* inp)
 {
-    ioctl(inp->fd, UI_SET_EVBIT, EV_REL);
-    ioctl(inp->fd, UI_SET_RELBIT, REL_X);
-    ioctl(inp->fd, UI_SET_RELBIT, REL_Y);
-    ioctl(inp->fd, UI_SET_RELBIT, REL_WHEEL);
-    ioctl(inp->fd, UI_SET_KEYBIT, BTN_LEFT);
-    ioctl(inp->fd, UI_SET_KEYBIT, BTN_RIGHT);
-    ioctl(inp->fd, UI_SET_KEYBIT, BTN_MIDDLE);
-    ioctl(inp->fd, UI_SET_KEYBIT, BTN_SIDE);
-    ioctl(inp->fd, UI_SET_KEYBIT, BTN_EXTRA);
+    ioctl(inp->fd_mouse, UI_SET_EVBIT, EV_REL);
+    ioctl(inp->fd_mouse, UI_SET_RELBIT, REL_X);
+    ioctl(inp->fd_mouse, UI_SET_RELBIT, REL_Y);
+    ioctl(inp->fd_mouse, UI_SET_RELBIT, REL_WHEEL);
+    ioctl(inp->fd_mouse, UI_SET_RELBIT, REL_HWHEEL);
+    ioctl(inp->fd_mouse, UI_SET_EVBIT, EV_KEY);
+    ioctl(inp->fd_mouse, UI_SET_KEYBIT, BTN_LEFT);
+    ioctl(inp->fd_mouse, UI_SET_KEYBIT, BTN_RIGHT);
+    ioctl(inp->fd_mouse, UI_SET_KEYBIT, BTN_MIDDLE);
+    ioctl(inp->fd_mouse, UI_SET_KEYBIT, BTN_SIDE);
+    ioctl(inp->fd_mouse, UI_SET_KEYBIT, BTN_EXTRA);
 }
 
 #endif
@@ -840,9 +854,9 @@ void register_mouse_keys(inputs* inp)
 #define REGULAR_KEYS 1    /* Regular keys include letters, modifiers, locks, and numbers basically a 60% layout with the arrows and some modifiers */
 #define FUNCTION_KEYS 2   /* Self explainatory*/
 #define NUMPAD_KEYS 4     /* Self explainatory*/
-#define OTHER_KEYS 8      /* This includes weird buttons like pruint32_tscreen, help, menu, copy, paste and some more stuff*/
+#define OTHER_KEYS 8      /* This includes weird buttons like printscreen, help, menu, copy, paste and some more stuff*/
 #define MEDIA_KEYS 16     /* Keys for media playback, and volume changes*/
-#define uint32_tL_KEYS 32      /* I don't really know what these are, but they exist */
+#define INTL_KEYS 32      /* I don't really know what these are, but they exist */
 #define KEYPAD_SPECIAL 64 /* Some more odd keypad keys, I don't know if they are used at all on any modern keyboards*/
 #define EXTENDED_KEYS 128 /* Even more odd keys, I don't think anyone really needs this */
 #define MOUSE 256         /* Mouse support*/
@@ -853,7 +867,7 @@ void register_mouse_keys(inputs* inp)
 
 /*
  * @brief Creates a struct that can be used to send inputs
- * 
+ *
  * @param flags The flags that specify what keys to register (see REGULAR_KEYS, FUNCTION_KEYS, NUMPAD_KEYS, OTHER_KEYS, MEDIA_KEYS, uint32_tL_KEYS, KEYPAD_SPECIAL, EXTENDED_KEYS, MOUSE)
 */
 inputs* create_inputs_struct(uint32_t flags)
@@ -864,9 +878,13 @@ inputs* create_inputs_struct(uint32_t flags)
     }
     inputs* inp;
     inp = (inputs*)malloc(sizeof(inputs));
+#ifdef _WIN32
+    inp->screen_h=GetSystemMetrics(SM_CYSCREEN);
+    inp->screen_w=GetSystemMetrics(SM_CXSCREEN);
+#endif
 #ifndef _WIN32
-    inp->fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
-    if (inp->fd < 0)
+    inp->fd_keybd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+    if (inp->fd_keybd < 0)
         return NULL;
     memset(&inp->usetup, 0, sizeof(inp->usetup));
     strncpy(inp->usetup.name, "virtual-Input-Device", UINPUT_MAX_NAME_SIZE);
@@ -874,7 +892,7 @@ inputs* create_inputs_struct(uint32_t flags)
     inp->usetup.id.vendor = 0x0001;
     inp->usetup.id.product = 0x0001;
 
-    ioctl(inp->fd, UI_SET_EVBIT, EV_KEY);
+    ioctl(inp->fd_keybd, UI_SET_EVBIT, EV_KEY);
 
     usleep(100000);
     if (flags & REGULAR_KEYS)
@@ -897,7 +915,7 @@ inputs* create_inputs_struct(uint32_t flags)
     {
         register_media_keys(inp);
     }
-    if (flags & uint32_tL_KEYS)
+    if (flags & INTL_KEYS)
     {
         register_intl_keys(inp);
     }
@@ -910,15 +928,22 @@ inputs* create_inputs_struct(uint32_t flags)
         register_mouse_keys(inp);
     }
 
-    ioctl(inp->fd, UI_DEV_SETUP, &inp->usetup);
-    ioctl(inp->fd, UI_DEV_CREATE);
-    #endif
+    ioctl(inp->fd_keybd, UI_DEV_SETUP, &inp->usetup);
+    ioctl(inp->fd_keybd, UI_DEV_CREATE);
+
+    inp -> display = XOpenDisplay(NULL);
+    inp -> screen = DefaultScreenOfDisplay(inp -> display);
+    /* Kind of redundant but it keeps everything consistent */
+    inp -> screen_w = inp -> screen -> width;
+    inp -> screen_h = inp -> screen -> height;
+    inp -> root_window = XRootWindow(inp -> display, XDefaultScreen(inp -> display));
+#endif
     /* By default */
     inp->last_input_result=0;
     return inp;
 }
 
-/*  Sends a key press and release event 
+/*  Sends a key press and release event
     For specific key presses and releases use send_key_press and send_key_release
     Please see MODIFIERS for valid values of mods
 */
@@ -968,7 +993,9 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     inputs[cv].type = INPUT_KEYBOARD;
     inputs[cv].ki.wVk = key;
     inputs[cv].ki.dwFlags = KEYEVENTF_KEYUP;
-    SendInput(cInputs, inputs, sizeof(INPUT));
+    SendInput(cInputs/2, inputs, sizeof(INPUT));
+    usleep(100);
+    SendInput(cInputs/2, inputs + cInputs/2, sizeof(INPUT));
 #endif
 #ifndef _WIN32
 
@@ -987,7 +1014,7 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
                 inp->ev_mod.type = EV_KEY;
                 inp->ev_mod.code = MOD_KEYS[i];
                 inp->ev_mod.value = 1;
-                write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+                write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
                 send_syn(inp);
                 usleep(100);
             }
@@ -997,7 +1024,7 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     inp->ev_key.code = key;
     inp->ev_key.value = 1;
     usleep(1000);
-    write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
+    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     if (mods != 0)
     {
@@ -1008,14 +1035,14 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
                 inp->ev_mod.type = EV_KEY;
                 inp->ev_mod.code = MOD_KEYS[i];
                 inp->ev_mod.value = 0;
-                write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+                write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
                 send_syn(inp);
                 usleep(100);
             }
         }
     }
     inp->ev_key.value = 0;
-    write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
+    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
 
     send_syn(inp);
 #endif
@@ -1071,7 +1098,7 @@ void send_key_press(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
             inp->ev_mod.type = EV_KEY;
             inp->ev_mod.code = MOD_KEYS[i];
             inp->ev_mod.value = 1;
-            write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+            write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
             send_syn(inp);
         }
     }
@@ -1079,7 +1106,7 @@ void send_key_press(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     inp->ev_key.code = key;
     inp->ev_key.value = 1;
     usleep(1000);
-    write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
+    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
 #endif
 }
@@ -1133,7 +1160,7 @@ void send_key_release(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
             inp->ev_mod.type = EV_KEY;
             inp->ev_mod.code = MOD_KEYS[i];
             inp->ev_mod.value = 1;
-            write(inp->fd, &inp->ev_mod, sizeof(inp->ev_mod));
+            write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
             send_syn(inp);
         }
     }
@@ -1141,7 +1168,202 @@ void send_key_release(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     inp->ev_key.code = key;
     inp->ev_key.value = 1;
     usleep(1000);
-    write(inp->fd, &inp->ev_key, sizeof(inp->ev_key));
+    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
+#endif
+}
+
+/**
+ * @brief Writes the cursor position to the x and y variables
+ *
+ * @return 0 on failure, nonzero otherwise
+*/
+int get_mouse_position(inputs* inp, int *x, int *y)
+{
+#ifdef _WIN32
+    /* Goofy aah windows */
+    POINT point;
+    int ret = GetCursorInfo(&point);
+    *x = point.x;
+    *y = point.y;
+    return ret;
+#else
+    Window root_return, child_return;
+    int win_x, win_y;
+    unsigned int mask_return;
+
+    int ret = XQueryPointer(inp -> display, inp -> root_window, &root_return, &child_return,
+                  x, y, &win_x, &win_y, &mask_return);
+    return ret;
+#endif
+}
+
+/**
+ * @brief Sets the mouse position to x and y as pixel coordinates, not absolute
+ *
+ * @param inp pointer to an instance of the inputs struct
+ * @param x the x coordinate
+ * @param y the y coordinate
+*/
+void set_mouse_pos(inputs* inp, int x, int y)
+{
+#ifdef _WIN32
+    INPUT _inp;
+    ZeroMemory(&_inp, sizeof(INPUT));
+    _inp.type = INPUT_MOUSE;
+    _inp.mi.dx = x * (float)((float)65536 / (float)inp->screen_w);
+    _inp.mi.dy = y * (float)((float)65536 / (float)inp->screen_h);
+    _inp.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+    SendInput(1, &_inp, sizeof(INPUT));
+    usleep(100);
+#else
+    Display *display = XOpenDisplay(NULL);
+    Window root_window = XRootWindow(display, XDefaultScreen(display));
+
+    XWarpPointer(inp -> display, NULL, inp -> root_window, 0, 0, 0, 0, x, y);
+    XFlush(inp -> display);
+#endif
+}
+
+void send_Lclick(inputs* inp)
+{
+#ifdef _WIN32
+    INPUT click[2];
+    ZeroMemory(click, sizeof(click));
+    click[0].type = INPUT_MOUSE;
+    click[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+    click[1].type = INPUT_MOUSE;
+    click[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+    SendInput(1, click, sizeof(INPUT));
+    usleep(100);
+    SendInput(1, click + 1, sizeof(INPUT));
+    usleep(100);
+    return;
+#else
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    inp->ev_key.type = EV_KEY;
+    inp->ev_key.code = BTN_LEFT;
+    inp->ev_key.value = 1;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    usleep(100);
+    inp->ev_key.value = 0;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    usleep(100);
+    return;
+#endif
+}
+
+void send_Rclick(inputs* inp)
+{
+#ifdef _WIN32
+    INPUT click[2];
+    ZeroMemory(click, sizeof(click));
+    click[0].type = INPUT_MOUSE;
+    click[0].mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+    click[1].type = INPUT_MOUSE;
+    click[1].mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+    SendInput(1, click, sizeof(INPUT));
+    usleep(100);
+    SendInput(1, click + 1, sizeof(INPUT));
+    usleep(100);
+    return;
+#else
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    inp->ev_key.type = EV_KEY;
+    inp->ev_key.code = BTN_RIGHT;
+    inp->ev_key.value = 1;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    inp->ev_key.value = 0;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    return;
+#endif
+}
+
+void send_Mclick(inputs* inp)
+{
+#ifdef _WIN32
+    INPUT click[2];
+    ZeroMemory(click, sizeof(click));
+    click[0].type = INPUT_MOUSE;
+    click[0].mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
+    click[1].type = INPUT_MOUSE;
+    click[1].mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+    SendInput(1, click, sizeof(INPUT));
+    usleep(100);
+    SendInput(1, click + 1, sizeof(INPUT));
+    usleep(100);
+    return;
+#else
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    inp->ev_key.type = EV_KEY;
+    inp->ev_key.code = BTN_MIDDLE;
+    inp->ev_key.value = 1;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    inp->ev_key.value = 0;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    return;
+#endif
+}
+
+void send_mouse_scroll(inputs* inp, int amount)
+{
+#ifdef _WIN32
+    INPUT scroll;
+    ZeroMemory(&scroll, sizeof(INPUT));
+    scroll.type = INPUT_MOUSE;
+    scroll.mi.dwFlags = MOUSEEVENTF_WHEEL;
+    scroll.mi.mouseData = amount;
+    SendInput(1, &scroll, sizeof(INPUT));
+    usleep(100);
+    return;
+#else
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    inp->ev_key.type = EV_REL;
+    inp->ev_key.code = REL_WHEEL;
+    inp->ev_key.value = amount;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    inp->ev_key.value = 0;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    return;
+#endif
+}
+
+/* As the name suggests this is a horizontal scroll, it's a thing that exists on quite some mice */
+void send_mouse_scroll_horizontal(inputs* inp, int amount)
+{
+#ifdef _WIN32
+    INPUT scroll;
+    ZeroMemory(&scroll, sizeof(INPUT));
+    scroll.type = INPUT_MOUSE;
+    scroll.mi.dwFlags = MOUSEEVENTF_HWHEEL;
+    scroll.mi.mouseData = amount;
+    SendInput(1, &scroll, sizeof(INPUT));
+    usleep(100);
+    return;
+#else
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    inp->ev_key.type = EV_REL;
+    inp->ev_key.code = REL_HWHEEL;
+    inp->ev_key.value = amount;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    inp->ev_key.value = 0;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    send_syn(inp);
+    usleep(100);
+    return;
 #endif
 }
