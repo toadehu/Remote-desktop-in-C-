@@ -110,6 +110,7 @@ typedef struct image_element
     SDL_Rect rect;
     SDL_Texture* texture;
     void* pixels;
+    int pixels_size, pitch;
     SDL_Renderer* renderer;
     bool is_visible;
     int flags;
@@ -140,7 +141,27 @@ image_element* create_new_image_element(SDL_Renderer* renderer, char* Img_path, 
     new_image -> rect.w = w;
     new_image -> rect.h = h;
     new_image -> flags = flags;
+    
+    if (flags & TEXTURE_STREAMLINED)
+    {
+        new_image -> pixels = __aligned_malloc(w * h * 4, 4096);
+        new_image -> texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+        new_image -> pixels_size = w * h * 4;
+        SDL_LockTexture(new_image->texture, NULL, &new_image->pixels, &new_image->pitch);
 
+        memset(new_image->pixels, 255, w * h * 4);
+
+        SDL_UnlockTexture(new_image->texture);
+        /*Load the renderer pointer*/
+        new_image -> renderer = renderer;
+
+        new_image -> is_visible = true;
+
+        /*Set the update_rect function*/
+        new_image -> update_rect = update_rect_func;
+        
+        return new_image;
+    }
     if (Img_path != NULL)
     {
         /*Load the image as a surface*/
@@ -154,11 +175,6 @@ image_element* create_new_image_element(SDL_Renderer* renderer, char* Img_path, 
 
         /*Free the surface from main memory*/
         SDL_FreeSurface(surface);
-    }
-    else if (flags & TEXTURE_STREAMLINED)
-    {
-        new_image -> pixels = __aligned_malloc(w * h * 4, 4096);
-        new_image -> texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
     }
 
     new_image -> is_visible = true;
@@ -185,14 +201,39 @@ void image_element_update_graphics(image_element* img, char* data, int type_of_i
 
     if (img->flags == TEXTURE_STREAMLINED)
     {
-        int pitch;
+        if (img->pixels_size != img->rect.w * img->rect.h * 4)
+        {
+            printf("Resize happened\n");
+            SDL_RenderPresent(img->renderer);
+            usleep(1111);
+            SDL_DestroyTexture(img->texture);
+            img->texture = SDL_CreateTexture(img->renderer, SDL_PIXELFORMAT_ARGB8888,
+                                                SDL_TEXTUREACCESS_STREAMING, img->rect.w, img->rect.h);
+            if (img->texture == NULL)
+            {
+                printf("Error: %s\n", SDL_GetError());
+            }
+            SDL_LockTexture(img->texture, NULL, &img->pixels, &img->pitch);
+            
+            img->pixels = __aligned_realloc(img->pixels, img->pixels_size, img->rect.w * img->rect.h * 4, 4096);
 
-        SDL_LockTexture(img -> texture, NULL, &img -> pixels, &pitch);
+            memcpy(img -> pixels, data, img -> rect.w * img -> rect.h * 4);
 
-        memcpy(img -> pixels, data, img -> rect.w * img -> rect.h * 4);
+            SDL_UnlockTexture(img -> texture);
 
-        SDL_UnlockTexture(img -> texture);
+            printf("About to escape the if statement\n");
+            img->pixels_size = img->rect.w * img->rect.h * 4;
+        }
+        else
+        {
+            SDL_LockTexture(img -> texture, NULL, &img -> pixels, &img->pitch);
 
+            memcpy(img -> pixels, data, img -> rect.w * img -> rect.h * 4);
+
+            SDL_UnlockTexture(img -> texture);
+
+            printf("Done updating streamlined image\n\n\n");
+        }
         return;
     }
 
