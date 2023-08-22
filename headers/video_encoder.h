@@ -939,7 +939,7 @@ void resize_image_nearest_neighbor_preserve_aspect(const byte *src, byte *dst, i
  * @param zoom_ratio The zoom ratio
  * @param x The x coordinate of the center point after zooming
 */
-void get_zoom_coords(int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio, int* x. int *y)
+void get_zoom_coords(int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio, int* x, int *y)
 {
     int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
     /* Adjust centers to the minimum positions */
