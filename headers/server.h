@@ -560,13 +560,11 @@ int find_hot_socket_with_timeout(TCP_SOCKET *sock, int32_t microseconds)
     /* Something went wrong */
     if (activity == SOCKET_ERROR)
     {
-        printf("Wtf italia %d\n\n\n", activity);
         return -2;
     }
     /* Nothing is happening */
     else if (activity == 0)
     {
-        printf("Wtf germania %d\n\n\n", activity);
         return -1;
     }
 

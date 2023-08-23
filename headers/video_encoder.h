@@ -4,6 +4,7 @@
 
 typedef unsigned char byte;
 
+
 #ifdef __AVX2__
 #include <immintrin.h>
 
@@ -295,7 +296,6 @@ void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
 }
 
 #endif
-
 
 void YUV420ToARGB(char *yuv, int width, int height, char *argb)
 {
