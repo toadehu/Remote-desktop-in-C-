@@ -168,8 +168,6 @@ int rle_second_pass(basic_video_enc* video)
     int ci = 0;
     for (i = 0; i < video -> pass2_size; i++)
     {
-        //if ((u_char)video -> first_pass_pass2[i] > 50)
-            //printf("Current data: %d, at %d\n", (u_char)video -> first_pass_pass2[i], i);
         video -> first_pass_size[i] = video -> first_pass_size[ci];
         ci += (unsigned char)video -> first_pass_pass2[i];
     }
@@ -190,7 +188,9 @@ int basic_encode_next_frame(basic_video_enc* video, char* next_frame, int* flags
     {
         int first_arr_size = rle_first_pass(next_frame, video);
         int second_arr_size = 2 * rle_second_pass(video);
+#ifdef _DEBUG
         printf("First pass size: %d, second pass size: %d\n", first_arr_size, second_arr_size);
+#endif
         memcpy(video -> prev_image, next_frame, video -> image_size);
         *flags = RLE_TWO_PASS;
         return first_arr_size + second_arr_size;
@@ -357,14 +357,13 @@ basic_video_dec* basic_create_video_dec(int width, int height, int bitrate, int 
 */
 void rle_first_decode(char* data, int size, basic_video_dec* video, char* orig)
 {
-    int i, j;
+    int i;
     video -> pass2_size = 0;
     for (i = 0; i < size; i+=1)
     {
         memset(video->first_pass_size + video->pass2_size, data[i], (u_char)data[i + size]);
         video -> pass2_size += (unsigned char)data[i + size];
     }
-    printf("Pass2 size: %d\n^^^^^^^^^^^^^^^^^^^\n", video -> pass2_size);
 }
 
 void rle_second_decode(char* data, basic_video_dec* video)
@@ -376,7 +375,6 @@ void rle_second_decode(char* data, basic_video_dec* video)
         memset(video ->first_pass + video -> pass1_size, data[i], (u_char)video -> first_pass_size[i]);
         video -> pass1_size += (u_char)video -> first_pass_size[i];
     }
-    printf("Pass1 size: %d\n^^^^^^^^^^^^^^^^^^^\n", video -> pass1_size);
 }
 
 /**
@@ -393,7 +391,6 @@ void basic_decode_next_frame(basic_video_dec* video, char* data, int size_of_dat
     if (video -> preset == RLE_TWO_PASS)
     {
         int offset_for_first_pass = size_of_data - 2 * offset;
-        printf("Offset is %d so first pass size is %d\n", offset, offset_for_first_pass);
         rle_first_decode(data + offset_for_first_pass, offset , video, data);
         rle_second_decode(data, video);
     }
