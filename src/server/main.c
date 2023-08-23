@@ -4,6 +4,10 @@
 
 #include "framework.h"
 
+#include <setjmp.h>
+
+/* jmp_buf */ 
+
 #define HEADER_SIZE 20
 
 int port;
@@ -19,6 +23,98 @@ void update_versace_size(SDL_Rect* rect, SDL_Rect win_rect)
 void versace_button_on_click()
 {
 	/*To be completed*/
+}
+
+void process_inputs(TCP_SOCKET* sock, inputs* inp)
+{
+	/* More than 1 input/ms is impossible big polling ratez are 1000hz*/
+	char buffer[400];
+	int rez = TCP_Socket_receive_data_once(sock, 0, buffer, 400);
+	int i;
+	uint32_t key, mod;
+	int32_t x,y,relx,rely;
+	uint32_t realX, realY;
+	char click_type;
+	for (i = 0; i < rez;)
+	{
+		switch (buffer[i])
+		{
+		case mouse_input_move:
+			i += 4;
+			x = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			y = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			relx = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			rely = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			uint32_t realX, realY;
+			realX = x * (float)((float)inp->screen_w / (float)relx);
+			realY = y * (float)((float)inp->screen_h / (float)rely);
+			printf("realX: %d, realY: %d\n", realX, realY);
+			/*set_mouse_pos(inp, realX, realY);*/
+			break;
+		case mouse_input_click:
+			click_type = buffer[i + 1];
+			i += 4;
+			x = ntohl(*(uint32_t*)((char*)buffer + i));
+			if (x < 0)
+			{
+				x *= -1;
+			}
+			i += 4;
+			y = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			relx = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			rely = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			realX = inp->screen_w * (float)((float)x / (float)relx);
+			realY = inp->screen_h * (float)((float)y / (float)rely);
+			printf("X:%d, Y:%d, winX:%d, winY:%d\n", x, y, relx, rely);
+			printf("realX: %d, realY: %d\n", realX, realY);
+			set_mouse_pos(inp, realX, realY);
+			Sleep(2);
+			if (click_type == (char)CLICK_LEFT)
+			{
+				printf("Left click\n");
+				send_Lclick(inp);
+			}
+			else if (click_type == (char)CLICK_RIGHT)
+			{
+				send_Rclick(inp);
+			}
+			else if (click_type == (char)CLICK_MIDDLE)
+			{
+				send_Mclick(inp);
+			}
+			/* This is a double click */
+			else if (click_type == (char)mouse_input_click)
+			{
+				send_Lclick(inp);
+				send_Lclick(inp);
+			}
+			/* No support for OEM1 and OEM2*/
+			break;
+		case mouse_input_scroll:
+			send_mouse_scroll(inp, ntohl(*(uint32_t*)((char*)buffer + i)));
+			i += 12;
+			break;
+		case keybd_input:
+			i += 4;
+			key = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			mod = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			//send_key_press(inp, key, mod, SDL_INPUT);
+			break;
+		default:
+			i+=12;
+			printf("Unknown input\n");
+			break;
+		}
+	}
 }
 
 int main (int argc, char *argv[])
@@ -52,7 +148,12 @@ int main (int argc, char *argv[])
 		}
 	}
 
-	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, (char*)"Test", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
+	inputs* inp;
+	inp = create_inputs_struct(FULL_LAYOUT | MOUSE);
+
+	printf("PORT = %d\n", port);
+
+	GRAPHICS_RENDERER *renderer = create_graphics_renderer(800, 600, (char*)"Test", (char*)"img.jpg", SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN, SDL_RENDERER_ACCELERATED);
 	SDL_GetWindowSize(renderer -> window, &renderer -> win_rect.w, &renderer -> win_rect.h);
 
 	/*GRAPHICS_RENDERER *la_lautari = create_graphics_renderer(800, 600, "Lautari", SDL_WINDOW_SHOWN);*/
@@ -79,6 +180,15 @@ int main (int argc, char *argv[])
 	basic_video_enc* basic_enc = NULL;
 
 	struct TCP_Socket* sock = TCP_SOCKET_create(port, 0, true, 1, 0);
+
+	allow_select(sock);
+
+RECONNECT_CLIENT:
+	if (sock == NULL)
+	{
+		printf("Failed to create socket\n");
+		exit(1);
+	}
 
 	while (loop)
 	{
@@ -113,6 +223,13 @@ int main (int argc, char *argv[])
 			}
 		}
 
+		int rez = find_hot_socket_with_timeout(sock, 100);
+		/* check if there is data coming from the client */
+		if (rez == 0)
+		{
+			process_inputs(sock, inp);
+		}
+
 		/*clear the screen*/
 		SDL_RenderClear(renderer -> renderer);
 		
@@ -144,8 +261,6 @@ int main (int argc, char *argv[])
 		printf("Screen size: %d, %d\n", screen_width, screen_height);
 #endif
 
-		printf("First 4 U values be like: %d, %d, %d, %d\n", yuv_buffer[0 + screen_width * screen_height], yuv_buffer[1 + screen_width * screen_height], yuv_buffer[2 + screen_width * screen_height], yuv_buffer[3 + screen_width * screen_height]);
-
 		ARGBToYUV420(&screen_bits, screen_width, screen_height, &yuv_buffer);
 
 #ifdef _DEBUG
@@ -172,7 +287,6 @@ int main (int argc, char *argv[])
 #else
 		sz = basic_encode_next_frame(basic_enc, yuv_buffer, &encoding_flags);
 #endif
-		printf("Encoding done\n");
 		if (sending_buffer_size < sz + 20)
 		{
 			free(sending_buffer);
@@ -195,10 +309,11 @@ int main (int argc, char *argv[])
 		if (sent == -1)
 		{
 			/* The client disconnected :(*/
-			printf("The client disconnected\n");
+			/* printf("The client disconnected\n"); */
 			TCP_Socket_accept_new_connection(sock, 0);
+			/* printf("Accepted new connection\n"); */
 		}
-		if (sent != sz + 20)
+		else if (sent != sz + 20)
 		{
 			int sent2 = TCP_Socket_send_data(sock, 0, sending_buffer, sz + 20 - sent);
 			if (sent2 < 0)
@@ -208,10 +323,9 @@ int main (int argc, char *argv[])
 			}
 			sent2 == sz + 20 - sent ? printf("Data sent\n") : printf("The connection is compromised, expected to send%d, actually sent: %d\n", sz + 20, sent2); exit(1);
 		}
-		printf("Data sent\n");
 
 		/* calculate to 24fps*/
-		SDL_Delay(renderer -> ms);
+		SDL_Delay(1);
 	}
 
 	return 0;
