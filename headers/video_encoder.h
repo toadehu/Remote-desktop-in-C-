@@ -311,8 +311,8 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
         for (i = 0; i < width; i+=1)
         {
             int y = (byte)y_plane[vert_offset2 + i];
-            int u = (byte)u_plane[vert_offset + (i / 2)];
-            int v = (byte)v_plane[vert_offset + (i / 2)];
+            int u = (byte)u_plane[vert_offset + (i >> 1)];
+            int v = (byte)v_plane[vert_offset + (i >> 1)];
 
             int c = y - 16;
             int d = u - 128;
@@ -326,10 +326,10 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
             g = g < 0 ? 0 : (g > 255 ? 255 : g);
             b = b < 0 ? 0 : (b > 255 ? 255 : b);
 
-            (argb)[argb_index++] = b;
-            (argb)[argb_index++] = g;
-            (argb)[argb_index++] = r;            
-            (argb)[argb_index++] = 255; /* Set the alpha channel to 255 (opaque)*/
+            argb[argb_index++] = b;
+            argb[argb_index++] = g;
+            argb[argb_index++] = r;
+            argb[argb_index++] = 255;
         }
     }
 }
@@ -975,7 +975,7 @@ void get_zoom_coords(int src_width, int src_height, int zoom_x, int zoom_y, floa
  * @param zoom_y The y coordinate of the center point
  * @param zoom_ratio The zoom ratio
 */
-void zoom_image(const byte **src, byte** dst, int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio)
+void zoom_image(const byte *src, byte** dst, int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio)
 {
     int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
     /* Adjust centers to the minimum positions */
@@ -997,9 +997,11 @@ void zoom_image(const byte **src, byte** dst, int src_width, int src_height, int
     }
     int x_start = zoom_x - dst_width/2, y_start = zoom_y - dst_height/2;
     int x_end = zoom_x + dst_width/2, y_end = zoom_y + dst_height/2;
-    int i,j;
+    int i;
+    printf("x_start = %d, x_end = %d, y_start = %d, y_end = %d\n", x_start, x_end, y_start, y_end);
     for (i = x_start; i < x_end; i+=1)
     {
-        memcpy(&dst[(i - x_start) * dst_height], &src[(i * src_height + y_start) * 4], dst_height * 4);
+        printf("i = %d\n", i);
+        memcpy(&dst[(i - x_start) * dst_height], src[(i * src_height + y_start) * 4], dst_height * 4);
     }
 }
