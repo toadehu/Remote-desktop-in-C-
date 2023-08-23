@@ -203,9 +203,7 @@ void image_element_update_graphics(image_element* img, char* data, int type_of_i
     {
         if (img->pixels_size != img->rect.w * img->rect.h * 4)
         {
-            printf("Resize happened\n");
             SDL_RenderPresent(img->renderer);
-            usleep(1111);
             SDL_DestroyTexture(img->texture);
             img->texture = SDL_CreateTexture(img->renderer, SDL_PIXELFORMAT_ARGB8888,
                                                 SDL_TEXTUREACCESS_STREAMING, img->rect.w, img->rect.h);
