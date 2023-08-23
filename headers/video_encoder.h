@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+typedef unsigned char byte;
+
 
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -167,11 +169,11 @@ void ARGBToYUV420(char **argb, int width, int height, char **yuv)
     {
         for (i = 0; i < width; i+=1) 
         {
-            int b = (unsigned char)*(*argb + argb_index);
+            int b = (byte)*(*argb + argb_index);
             argb_index+=1;
-            int g = (unsigned char)*(*argb + argb_index);
+            int g = (byte)*(*argb + argb_index);
             argb_index+=1;
-            int r = (unsigned char)*(*argb + argb_index);
+            int r = (byte)*(*argb + argb_index);
             argb_index+=2; /* Skip the alpha channel*/
 
             int y = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
@@ -192,27 +194,27 @@ void ARGBToYUV420(char **argb, int width, int height, char **yuv)
 }
 
 #ifdef _MSC_VER
-#include <intrin.h> // For Microsoft Visual C++
+#include <intrin.h> /* For Microsoft Visual C++ */
 #else
-#include <cpuid.h> // For GCC and Clang
+#include <cpuid.h> /* For GCC and Clang */
 #endif
 
 bool checkAVX2Support()
 {
 #ifdef _MSC_VER
     int info[4];
-    __cpuid(info, 0); // Get the highest supported function ID
+    __cpuid(info, 0); /* Get the highest supported function ID */
     if (info[0] < 7)
         return false;
 
-    __cpuidex(info, 7, 0); // Get the feature flags
-    return (info[1] & (1 << 5)) != 0; // Check the AVX2 bit (bit 5 of ECX)
+    __cpuidex(info, 7, 0); /* Get the feature flags */
+    return (info[1] & (1 << 5)) != 0; /* Check the AVX2 bit (bit 5 of ECX) */
 #else
     unsigned int eax, ebx, ecx, edx;
     if (__get_cpuid(0, &eax, &ebx, &ecx, &edx) && eax >= 7)
     {
         __cpuid_count(7, 0, eax, ebx, ecx, edx);
-        return (ebx & (1 << 5)) != 0; // Check the AVX2 bit (bit 5 of EBX)
+        return (ebx & (1 << 5)) != 0; /* Check the AVX2 bit (bit 5 of EBX) */
     }
     return false;
 #endif
@@ -238,12 +240,13 @@ void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
     const __m256i clamp_min = _mm256_setzero_si256();
     const __m256i clamp_max = _mm256_set1_epi16(255);
 
-    for (int j = 0; j < height; j++)
+    int i,j;
+    for (j = 0; j < height; j++)
     {
         int vert_offset = (j >> 1) * (width >> 1);
         int vert_offset2 = j * width;
 
-        for (int i = 0; i < width; i += 16)
+        for (i = 0; i < width; i += 16)
         {
             /* Load Y, U, and V values */
             __m256i y_values = _mm256_cvtepu8_epi16(_mm_loadu_si128((__m128i*)(y_plane + vert_offset2 + i)));
@@ -294,7 +297,6 @@ void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
 
 #endif
 
-
 void YUV420ToARGB(char *yuv, int width, int height, char *argb)
 {
     int plane_size = width * height;
@@ -308,9 +310,9 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
         int vert_offset2 = j * width;
         for (i = 0; i < width; i+=1)
         {
-            int y = (unsigned char)y_plane[vert_offset2 + i];
-            int u = (unsigned char)u_plane[vert_offset + (i / 2)];
-            int v = (unsigned char)v_plane[vert_offset + (i / 2)];
+            int y = (byte)y_plane[vert_offset2 + i];
+            int u = (byte)u_plane[vert_offset + (i >> 1)];
+            int v = (byte)v_plane[vert_offset + (i >> 1)];
 
             int c = y - 16;
             int d = u - 128;
@@ -324,10 +326,10 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
             g = g < 0 ? 0 : (g > 255 ? 255 : g);
             b = b < 0 ? 0 : (b > 255 ? 255 : b);
 
-            (argb)[argb_index++] = b;
-            (argb)[argb_index++] = g;
-            (argb)[argb_index++] = r;            
-            (argb)[argb_index++] = 255; /* Set the alpha channel to 255 (opaque)*/
+            argb[argb_index++] = b;
+            argb[argb_index++] = g;
+            argb[argb_index++] = r;
+            argb[argb_index++] = 255;
         }
     }
 }
@@ -345,9 +347,9 @@ void YUV420ToRGB24(char* yuv, int width, int height, char* argb)
         int vert_offset2 = j * width;
         for (i = 0; i < width; i += 1)
         {
-            int y = (unsigned char)y_plane[vert_offset2 + i];
-            int u = (unsigned char)u_plane[vert_offset + (i / 2)];
-            int v = (unsigned char)v_plane[vert_offset + (i / 2)];
+            int y = (byte)y_plane[vert_offset2 + i];
+            int u = (byte)u_plane[vert_offset + (i / 2)];
+            int v = (byte)v_plane[vert_offset + (i / 2)];
 
             int c = y - 16;
             int d = u - 128;
@@ -418,7 +420,7 @@ const char *kernel_src =
 "    return data[(y * width + x) * channels + channel];"
 "}";
 
-void CL_resize_image_bilinear(const char *src, char **dst, int src_width, int src_height, int dst_width, int dst_height, int *old_dst_size, int channels)
+void CL_resize_image_bilinear(const char *src, char **dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
  {
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
@@ -540,20 +542,22 @@ char bilinear_interpolate_SIMD(const char *src, float x, float y, int width, int
 
 #endif
 
-char bilinear_interpolate(const unsigned char *src, float x, float y, int width, int channels, int channel)
+char bilinear_interpolate(const byte *src, float x, float y, int width, int height, int channels, int channel)
 {
     int x1 = (int)x;
     int x2 = x1 + 1;
+    if (x2 >= width) x2--;
     int y1 = (int)y;
     int y2 = y1 + 1;
+    if (y2 >= height) y2--;
 
     float x_frac = x - x1;
     float y_frac = y - y1;
 
-    char Q11 = src[(y1 * width + x1) * channels + channel];
-    char Q12 = src[(y2 * width + x1) * channels + channel];
-    char Q21 = src[(y1 * width + x2) * channels + channel];
-    char Q22 = src[(y2 * width + x2) * channels + channel];
+    byte Q11 = src[(y1 * width + x1) * channels + channel];
+    byte Q12 = src[(y2 * width + x1) * channels + channel];
+    byte Q21 = src[(y1 * width + x2) * channels + channel];
+    byte Q22 = src[(y2 * width + x2) * channels + channel];
 
     float R1 = (1 - x_frac) * Q11 + x_frac * Q21;
     float R2 = (1 - x_frac) * Q12 + x_frac * Q22;
@@ -561,7 +565,7 @@ char bilinear_interpolate(const unsigned char *src, float x, float y, int width,
     return (char)((1 - y_frac) * R1 + y_frac * R2);
 }
 
-void resize_image_bilinear(const unsigned char *src, unsigned char *dst, int src_width, int src_height, int dst_width, int dst_height, int *old_dst_size, int channels)
+void resize_image_bilinear(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
 {
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
@@ -579,7 +583,13 @@ void resize_image_bilinear(const unsigned char *src, unsigned char *dst, int src
 
                 for (channel = 0; channel < channels; channel++)
                 {
-                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, channels, channel);
+                    if (channel == 3)
+                    {
+                        dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                        continue;
+                    }
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y,
+                        src_width, src_height, channels, channel);
                 }
             }
         }
@@ -590,13 +600,18 @@ void resize_image_bilinear(const unsigned char *src, unsigned char *dst, int src
 
             for (channel = 0; channel < channels; channel++)
             {
-                dst[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, channels, channel);
+                if (channel == 3)
+                {
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                    continue;
+                }
+                dst[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
             }
         }
     }
 } 
 
-void bilinear_resize_plane(const unsigned char* src, unsigned char* dst, int src_width, int src_height, int dst_width, int dst_height, float x_ratio, float y_ratio) 
+void bilinear_resize_plane(const byte* src, byte* dst, int src_width, int src_height, int dst_width, int dst_height, float x_ratio, float y_ratio) 
 {
     int dst_x, dst_y;
     for (dst_y = 0; dst_y < dst_height; dst_y++)
@@ -611,16 +626,16 @@ void bilinear_resize_plane(const unsigned char* src, unsigned char* dst, int src
             int x2 = (x1 + 1 < src_width) ? x1 + 1 : x1;
             int y2 = (y1 + 1 < src_height) ? y1 + 1 : y1;
             
-            unsigned char p1 = src[y1 * src_width + x1];
-            unsigned char p2 = src[y1 * src_width + x2];
-            unsigned char p3 = src[y2 * src_width + x1];
-            unsigned char p4 = src[y2 * src_width + x2];
+            byte p1 = src[y1 * src_width + x1];
+            byte p2 = src[y1 * src_width + x2];
+            byte p3 = src[y2 * src_width + x1];
+            byte p4 = src[y2 * src_width + x2];
 
             float weight_x = src_x - (float)x1;
             float weight_y = src_y - (float)y1;
 
-            // Bilinear interpolation formula
-            unsigned char interpolated_value =
+            /* Bilinear interpolation formula */
+            byte interpolated_value =
                 p1 * (1 - weight_x) * (1 - weight_y) +
                 p2 * weight_x * (1 - weight_y) +
                 p3 * (1 - weight_x) * weight_y +
@@ -634,143 +649,214 @@ void bilinear_resize_plane(const unsigned char* src, unsigned char* dst, int src
 /**
  * @brief This is intended to speedup both the interpolation and converstion to ARGB process as a whole. It might shave off a few milliseconds. (which is really significant)
 */
-void resize_image_bilinear_YUV420(const unsigned char *src, unsigned char **dst, int src_width, int src_height, int dst_width, int dst_height, int *old_dst_size)
+void resize_image_bilinear_YUV420(const byte *src, byte **dst, int src_width, int src_height, int dst_width, int dst_height)
 {
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
 
     int src_plane_size = src_width * src_height;
     int dst_plane_size = dst_width * dst_height;
-    
-    if (*old_dst_size < dst_plane_size * 3/2 || dst == NULL) // 1.5 = YUV420 has 1.5 bytes per pixel
-    {
-        *old_dst_size = dst_plane_size * 3/2;
-        printf("Reallocating dst to %d bytes\n", *old_dst_size);
-        *dst = (unsigned char*)realloc(*dst, *old_dst_size);
-        printf("Reallocated %p to %d bytes\n", *dst, *old_dst_size);
-    }
 
-    // Perform bilinear resizing separately for each plane
-    // Note: bilinear_interpolate_YUV420 should also be implemented
+    /* Perform bilinear resizing separately for each plane
+       Note: bilinear_interpolate_YUV420 should also be implemented */
     bilinear_resize_plane(&src[0], &(*dst)[0], src_width, src_height, dst_width, dst_height, x_ratio, y_ratio);
     bilinear_resize_plane(&src[src_plane_size], &(*dst)[dst_plane_size], src_width/2, src_height/2, dst_width/2, dst_height/2, x_ratio/2, y_ratio/2);
     bilinear_resize_plane(&src[src_plane_size*5/4], &(*dst)[dst_plane_size*5/4], src_width/2, src_height/2, dst_width/2, dst_height/2, x_ratio/2, y_ratio/2);
 }
 
-
-
-#pragma region Multi-threaded bilinear interpolation
-
-#define MAX_THREADS 8
-
-typedef struct {
-    const char *src;
-    char **dst;
-    int src_width, src_height, dst_width, dst_height, *old_dst_size, channels;
-    int start_y, end_y;
-} thread_data_t;
-
-void* thread_func(void *arg)
+void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
 {
-    thread_data_t *data = (thread_data_t*) arg;
+    /* Calculate aspect ratios */
+    double src_aspect_ratio = (double)src_width / (double)src_height;
+    double dst_aspect_ratio = (double)dst_width / (double)dst_height;
 
-    float x_ratio = (float)(data->src_width) / (float)data->dst_width;
-    float y_ratio = (float)(data->src_height) / (float)data->dst_height;
+    int target_width, target_height, x_offset = 0, y_offset = 0;
+    /* The destination aspect ratio is wider than the source */
+    if (dst_aspect_ratio > src_aspect_ratio) 
+    {
+        target_height = dst_height- dst_height % 18;
+        target_width = (int)(dst_height * src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
+    }
+    /* The destination aspect ratio is taller than the source */ 
+    else
+    {
+        target_width = dst_width - dst_width % 16;
+        target_height = (int)(dst_width / src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
+    }
+
+    float x_ratio = (float)(src_width) / (float)target_width;
+    float y_ratio = (float)(src_height) / (float)target_height;
+
+    /* Initialize the destination to black */
+    memset(dst, 0, dst_width * dst_height * channels);
+    /*
+    int i;
+    for (i = 0; i < dst_width * dst_height * channels; i++) {
+        dst[i] = (i % channels == 3) ? 255 : 0;
+    }*/
 
     int dst_y, dst_x, x, channel;
-
-    for (dst_y = data->start_y; dst_y < data->end_y; dst_y++)
+    for (dst_y = 0; dst_y < target_height; dst_y++)
     {
-        for (dst_x = 0; dst_x < data->dst_width; dst_x+=8)
+        for (dst_x = 0; dst_x < target_width; dst_x+=8)
         {
-            for (x = 0; x < 8; x++)
+            int ind = (dst_y + y_offset) * dst_width + dst_x + x_offset;;
+            for (x = 0; x < 8 && (x + dst_x) < target_width; x++)
             {
                 float src_x = (x + dst_x) * x_ratio;
                 float src_y = dst_y * y_ratio;
 
-                for (channel = 0; channel < data->channels; channel++)
+                for (channel = 0; channel < channels; channel++)
                 {
-                    (*(data->dst))[(dst_y * data->dst_width + x + dst_x) * data->channels + channel] = bilinear_interpolate((const unsigned char*)data->src, src_x, src_y, data->src_width,  data->channels, channel);
+                    if (channel == 3)
+                    {
+                        dst[(ind + x) * channels + channel] = 255;
+                        continue;
+                    }
+                    dst[(ind + x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
                 }
             }
         }
-        for (dst_x = data->dst_width & ~7; dst_x < data->dst_width; dst_x++)
+
+        for (dst_x = target_width & ~7; dst_x < target_width; dst_x++)
         {
             float src_x = dst_x * x_ratio;
             float src_y = dst_y * y_ratio;
 
-            for (channel = 0; channel < data->channels; channel++)
+            for (channel = 0; channel < channels; channel++)
             {
-                (*(data->dst))[(dst_y * data->dst_width + dst_x) * data->channels + channel] = bilinear_interpolate((const unsigned char*)data->src, src_x, src_y, data->src_width, data->channels, channel);
+                if (channel == 3)
+                {
+                    dst[((dst_y + y_offset) * dst_width + dst_x + x_offset) * channels + channel] = 255;
+                    continue;
+                }
+                dst[((dst_y + y_offset) * dst_width + dst_x + x_offset) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
             }
         }
     }
-    return NULL;
 }
 
 /**
- * @brief As it stands this standalone function is bad because creating the threads each time is expensive.
+ * @brief This is marginally faster than resize_image_bilinear_preserve_aspect 
 */
-void resize_image_bilinear_multithread(const char *src, char **dst, int src_width, int src_height, int dst_width, int dst_height, int *old_dst_size, int channels, int NUM_THREADS)
+void resize_image_bilinear_blocks_preserve_aspect(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
 {
-    if (*old_dst_size < dst_width * dst_height * channels || dst == NULL)
+    /* Calculate aspect ratios */
+    double src_aspect_ratio = (double)src_width / (double)src_height;
+    double dst_aspect_ratio = (double)dst_width / (double)dst_height;
+
+    int target_width, target_height, x_offset = 0, y_offset = 0;
+    
+    /* The destination aspect ratio is wider than the source */
+    if (dst_aspect_ratio > src_aspect_ratio) 
     {
-        *old_dst_size = dst_width * dst_height * channels;
-        printf("Reallocating dst to %d bytes\n", *old_dst_size);
-        *dst = (char*)realloc((void*)*dst, *old_dst_size);
-        printf("Reallocated %p to %d bytes\n", *dst, *old_dst_size);
+        target_height = dst_height - dst_height % 18;
+        target_width = (int)(dst_height * src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
+    }
+    /* The destination aspect ratio is taller than the source */ 
+    else
+    {
+        target_width = dst_width - dst_width % 16;
+        target_height = (int)(dst_width / src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
     }
 
-    if (NUM_THREADS > MAX_THREADS)
+    float x_ratio = (float)(src_width) / (float)target_width;
+    float y_ratio = (float)(src_height) / (float)target_height;
+
+    /* Initialize the destination to black */
+    memset(dst, 0, dst_width * dst_height * channels);
+
+    const int BLOCK_SIZE = 8;
+
+    int block_start_y, block_start_x, block_end_x, block_end_y, dst_y, dst_x, x, channel;
+    for (block_start_y = 0; block_start_y < target_height; block_start_y += BLOCK_SIZE) 
     {
-        NUM_THREADS = MAX_THREADS;
-    }
+        for (block_start_x = 0; block_start_x < target_width; block_start_x += BLOCK_SIZE) 
+        {
+            int block_end_x = block_start_x + BLOCK_SIZE > target_width ? target_width : block_start_x + BLOCK_SIZE;
+            int block_end_y = block_start_y + BLOCK_SIZE > target_height ? target_height : block_start_y + BLOCK_SIZE;
+            
+            for (dst_y = block_start_y; dst_y < block_end_y; dst_y++)
+            {
+                for (dst_x = block_start_x; dst_x < block_end_x; dst_x++)
+                {
+                    float src_x = dst_x * x_ratio;
+                    float src_y = dst_y * y_ratio;
 
-    if (NUM_THREADS < 1)
-    {
-        NUM_THREADS = 1;
-    }
+                    int base_index = (dst_y + y_offset) * dst_width + dst_x + x_offset;
 
-#ifdef _DEBUGg
-    pthread_t threads[NUM_THREADS];
-    thread_data_t thread_data[NUM_THREADS];
-    int num_rows_per_thread = dst_height / NUM_THREADS;
-
-    int i;
-
-    for (i = 0; i < NUM_THREADS; i++)
-    {
-        thread_data[i].src = src;
-        thread_data[i].dst = dst;
-        thread_data[i].src_width = src_width;
-        thread_data[i].src_height = src_height;
-        thread_data[i].dst_width = dst_width;
-        thread_data[i].dst_height = dst_height;
-        thread_data[i].old_dst_size = old_dst_size;
-        thread_data[i].channels = channels;
-        thread_data[i].start_y = i * num_rows_per_thread;
-        thread_data[i].end_y = (i == NUM_THREADS - 1) ? dst_height : (i + 1) * num_rows_per_thread;
-
-        if (pthread_create(&threads[i], NULL, thread_func, &thread_data[i])) {
-            fprintf(stderr, "Error creating thread\n");
-            return;
+                    for (channel = 0; channel < channels; channel++)
+                    {
+                        if (channel == 3)
+                        {
+                            dst[base_index * channels + channel] = 255;
+                        }
+                        else
+                        {
+                            dst[base_index * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
+                        }
+                    }
+                }
+            }
         }
     }
-
-    for (i = 0; i < NUM_THREADS; ++i)
-    {
-        if (pthread_join(threads[i], NULL)) {
-            fprintf(stderr, "Error joining thread\n");
-            return;
-        }
-    }
-#endif
-
 }
 
-#pragma endregion
+void apply_sharpening(byte *image, int width, int height, int channels) {
+    /* Define the sharpening kernel */
+    int kernel[3][3] = {
+        { 0, -1,  0},
+        {-1,  5, -1},
+        { 0, -1,  0}
+    };
 
-void resize_image_nearest_neighbor(const unsigned char *src, unsigned char *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+    /* Buffer to store adjusted pixel values */
+    byte *copy = (byte *)malloc(width * height * channels);
+
+    /* Make a copy of the original image */
+    memcpy(copy, image, width * height * channels);
+
+    int y,x,c;
+    for (y = 1; y < height - 1; y+=1) 
+    {
+        for (x = 1; x < width - 1; x+=1) 
+        {
+            for (c = 0; c < channels; c+=1) 
+            {
+                 /* Skip alpha channel */
+                if (c == 3) 
+                {
+                    continue;
+                }
+
+                int sum = 0, ky,kx;
+                for (ky = -1; ky <= 1; ky+=1) 
+                {
+                    for (kx = -1; kx <= 1; kx+=1) 
+                    {
+                        int pixel = copy[((y + ky) * width + (x + kx)) * channels + c];
+                        sum += pixel * kernel[ky + 1][kx + 1];
+                    }
+                }
+
+                /* Clamp the value to [0, 255] */
+                image[(y * width + x) * channels + c] = (sum < 0) ? 0 : (sum > 255) ? 255 : sum;
+            }
+        }
+    }
+
+    free(copy);
+}
+
+void resize_image_nearest_neighbor(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
 {
     float x_ratio = (float)src_width / (float)dst_width;
     float y_ratio = (float)src_height / (float)dst_height;
@@ -790,5 +876,132 @@ void resize_image_nearest_neighbor(const unsigned char *src, unsigned char *dst,
                 channels
             );
         }
+    }
+}
+
+void resize_image_nearest_neighbor_preserve_aspect(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+{
+    /* Calculate aspect ratios */
+    double src_aspect_ratio = (double)src_width / (double)src_height;
+    double dst_aspect_ratio = (double)dst_width / (double)dst_height;
+
+    int target_width, target_height, x_offset = 0, y_offset = 0;
+    /* The destination aspect ratio is wider than the source */
+    if (dst_aspect_ratio > src_aspect_ratio) 
+    {
+        target_height = dst_height- dst_height % 18;
+        target_width = (int)(dst_height * src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
+    }
+    /* The destination aspect ratio is taller than the source */ 
+    else
+    {
+        target_width = dst_width - dst_width % 16;
+        target_height = (int)(dst_width / src_aspect_ratio);
+        x_offset = (dst_width - target_width) / 2;
+        y_offset = (dst_height - target_height) / 2;
+    }
+
+    float x_ratio = (float)(src_width) / (float)target_width;
+    float y_ratio = (float)(src_height) / (float)target_height;
+
+    memset(dst, 0, dst_width * dst_height * channels);
+    int dst_y, dst_x, channel;
+
+    for (dst_y = 0; dst_y < target_height; dst_y++)
+    {
+        for (dst_x = 0; dst_x < target_width; dst_x++)
+        {
+            int src_x = (int)(dst_x * x_ratio);
+            int src_y = (int)(dst_y * y_ratio);
+
+            for (channel = 0; channel < channels; channel++)
+            {
+                if (channel == 3)
+                {
+                    dst[((dst_y + y_offset) * dst_width + dst_x + x_offset) * channels + channel] = 255;
+                    continue;
+                }
+                dst[((dst_y + y_offset) * dst_width + dst_x + x_offset) * channels + channel] = src[(src_y * src_width + src_x) * channels + channel];
+            }
+        }
+    }
+}
+
+/**
+ * @brief Gets the good zoom coordinates for the given zoom ratio
+ * 
+ * @param src_width The width of the source image
+ * @param src_height The height of the source image
+ * @param zoom_x The x coordinate of the center point
+ * @param zoom_y The y coordinate of the center point
+ * @param zoom_ratio The zoom ratio
+ * @param x The x coordinate of the center point after zooming
+*/
+void get_zoom_coords(int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio, int* x, int *y)
+{
+    int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
+    /* Adjust centers to the minimum positions */
+    if (zoom_x < dst_width/2)
+    {
+        zoom_x = dst_width/2;
+    }
+    else if (zoom_x > src_width - dst_width/2)
+    {
+        zoom_x = src_width - dst_width/2;
+    }
+    if (zoom_y < dst_height/2)
+    {
+        zoom_y = dst_height/2;
+    }
+    else if (zoom_y > src_height - dst_height/2)
+    {
+        zoom_y = src_height - dst_height/2;
+    }
+    *x=zoom_x;
+    *y=zoom_y;
+}
+
+/**
+ * @brief Zooms in the image at the given center point by the given zoom ratio
+ * This functions assumes 4 channels (ARGB)
+ * 
+ * @param src The source image
+ * @param dst The destination image
+ * @param src_width The width of the source image
+ * @param src_height The height of the source image
+ * @param zoom_x The x coordinate of the center point
+ * @param zoom_y The y coordinate of the center point
+ * @param zoom_ratio The zoom ratio
+*/
+void zoom_image(const byte *src, byte** dst, int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio)
+{
+    int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
+    /* Adjust centers to the minimum positions */
+    if (zoom_x < dst_width/2)
+    {
+        zoom_x = dst_width/2;
+    }
+    else if (zoom_x > src_width - dst_width/2)
+    {
+        zoom_x = src_width - dst_width/2;
+    }
+    if (zoom_y < dst_height/2)
+    {
+        zoom_y = dst_height/2;
+    }
+    else if (zoom_y > src_height - dst_height/2)
+    {
+        zoom_y = src_height - dst_height/2;
+    }
+    int x_start = zoom_x - dst_width/2, y_start = zoom_y - dst_height/2;
+    int x_end = zoom_x + dst_width/2, y_end = zoom_y + dst_height/2;
+    int i;
+    printf("x_start = %d, x_end = %d, y_start = %d, y_end = %d\n", x_start, x_end, y_start, y_end);
+    for (i = x_start; i < x_end; i+=1)
+    {
+        printf("i = %d\n", i);
+        memcpy(&dst[(i - x_start) * dst_height], src[(i * src_height + y_start) * 4], dst_height * 4);
     }
 }
