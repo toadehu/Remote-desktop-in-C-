@@ -25,33 +25,81 @@ void versace_button_on_click()
 	/*To be completed*/
 }
 
-void process_inputs(TCP_SOCKET* sock, inputs* inps)
+void process_inputs(TCP_SOCKET* sock, inputs* inp)
 {
-	printf("AAAAAAAAAAAAAAAA\n");
-	/* More than 1 input/ms is impossible */
-	char buffer[200];
-	int rez = TCP_Socket_receive_data_once(sock, 0, buffer, 200);
+	/* More than 1 input/ms is impossible big polling ratez are 1000hz*/
+	char buffer[400];
+	int rez = TCP_Socket_receive_data_once(sock, 0, buffer, 400);
 	int i;
 	uint32_t key, mod;
+	int32_t x,y,relx,rely;
+	uint32_t realX, realY;
+	char click_type;
 	for (i = 0; i < rez;)
 	{
 		switch (buffer[i])
 		{
 		case mouse_input_move:
-			/* Unimplemented atm */
-			i += 12;
+			i += 4;
+			x = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			y = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			relx = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			rely = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			uint32_t realX, realY;
+			realX = x * (float)((float)inp->screen_w / (float)relx);
+			realY = y * (float)((float)inp->screen_h / (float)rely);
+			printf("realX: %d, realY: %d\n", realX, realY);
+			/*set_mouse_pos(inp, realX, realY);*/
 			break;
 		case mouse_input_click:
-			i += 12;
-			/* Unimplemented atm */
+			click_type = buffer[i + 1];
+			i += 4;
+			x = ntohl(*(uint32_t*)((char*)buffer + i));
+			if (x < 0)
+			{
+				x *= -1;
+			}
+			i += 4;
+			y = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			relx = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			rely = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			realX = inp->screen_w * (float)((float)x / (float)relx);
+			realY = inp->screen_h * (float)((float)y / (float)rely);
+			printf("X:%d, Y:%d, winX:%d, winY:%d\n", x, y, relx, rely);
+			printf("realX: %d, realY: %d\n", realX, realY);
+			set_mouse_pos(inp, realX, realY);
+			Sleep(2);
+			if (click_type == (char)CLICK_LEFT)
+			{
+				printf("Left click\n");
+				send_Lclick(inp);
+			}
+			else if (click_type == (char)CLICK_RIGHT)
+			{
+				send_Rclick(inp);
+			}
+			else if (click_type == (char)CLICK_MIDDLE)
+			{
+				send_Mclick(inp);
+			}
+			/* This is a double click */
+			else if (click_type == (char)mouse_input_click)
+			{
+				send_Lclick(inp);
+				send_Lclick(inp);
+			}
+			/* No support for OEM1 and OEM2*/
 			break;
 		case mouse_input_scroll:
+			send_mouse_scroll(inp, ntohl(*(uint32_t*)((char*)buffer + i)));
 			i += 12;
-			/* Unimplemented atm */
-			break;
-		case mouse_input_oem:
-			i += 12;
-			/* Unimplemented atm */
 			break;
 		case keybd_input:
 			i += 4;
@@ -59,15 +107,13 @@ void process_inputs(TCP_SOCKET* sock, inputs* inps)
 			i += 4;
 			mod = ntohl(*(uint32_t*)((char*)buffer + i));
 			i += 4;
-			printf("\n\n\n\n\n\n\n\n\nSending the %d key with the %d modifier\n\n\n\n\n\n\n\n\n\n", key, mod);
-			send_key_press(inp, key, mod, SDL_INPUT);
+			//send_key_press(inp, key, mod, SDL_INPUT);
 			break;
 		default:
 			i+=12;
 			printf("Unknown input\n");
 			break;
 		}
-		printf("i: %d, rez: %d\n", i, rez);
 	}
 }
 
@@ -183,12 +229,6 @@ RECONNECT_CLIENT:
 		{
 			process_inputs(sock, inp);
 		}
-		else
-		{
-			//char bufff[100];
-			//printf("Using peek :%d", recv(sock -> client[0], bufff, 100, MSG_PEEK));
-			printf("However No data from client, rez = %d\n", rez);
-		}
 
 		/*clear the screen*/
 		SDL_RenderClear(renderer -> renderer);
@@ -285,7 +325,7 @@ RECONNECT_CLIENT:
 		}
 
 		/* calculate to 24fps*/
-		SDL_Delay(renderer -> ms);
+		SDL_Delay(1);
 	}
 
 	return 0;
