@@ -1215,13 +1215,14 @@ void set_mouse_pos(inputs* inp, int x, int y)
     _inp.mi.dy = y * (float)((float)65536 / (float)inp->screen_h);
     _inp.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
     SendInput(1, &_inp, sizeof(INPUT));
-    usleep(100);
+    usleep(500);
 #else
     Display *display = XOpenDisplay(NULL);
     Window root_window = XRootWindow(display, XDefaultScreen(display));
 
     XWarpPointer(inp -> display, NULL, inp -> root_window, 0, 0, 0, 0, x, y);
     XFlush(inp -> display);
+    usleep(500);
 #endif
 }
 
@@ -1234,10 +1235,8 @@ void send_Lclick(inputs* inp)
     click[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
     click[1].type = INPUT_MOUSE;
     click[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    SendInput(1, click, sizeof(INPUT));
-    usleep(100);
-    SendInput(1, click + 1, sizeof(INPUT));
-    usleep(100);
+    SendInput(2, click, sizeof(INPUT));
+    usleep(200);
     return;
 #else
     memset(&inp->ev_key, 0, sizeof(inp->ev_key));
@@ -1245,12 +1244,55 @@ void send_Lclick(inputs* inp)
     inp->ev_key.code = BTN_LEFT;
     inp->ev_key.value = 1;
     write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
-    usleep(100);
+    usleep(200);
     inp->ev_key.value = 0;
     write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
-    usleep(100);
+    usleep(200);
     return;
 #endif
+}
+
+void send_Lhold(inputs* inp)
+{
+#ifdef _WIN32
+    INPUT click[1];
+    ZeroMemory(click, sizeof(click));
+    click[0].type = INPUT_MOUSE;
+    click[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+    SendInput(1, click, sizeof(INPUT));
+    usleep(200);
+    return;
+#else
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    inp->ev_key.type = EV_KEY;
+    inp->ev_key.code = BTN_LEFT;
+    inp->ev_key.value = 1;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    usleep(200);
+    return;
+#endif
+}
+
+void send_Lrelease(inputs* inp)
+{   
+#ifdef _WIN32
+    INPUT click[1];
+    ZeroMemory(click, sizeof(click));
+    click[0].type = INPUT_MOUSE;
+    click[0].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+    SendInput(1, click, sizeof(INPUT));
+    usleep(200);
+    return;
+#else
+    memset(&inp->ev_key, 0, sizeof(inp->ev_key));
+    inp->ev_key.type = EV_KEY;
+    inp->ev_key.code = BTN_LEFT;
+    inp->ev_key.value = 0;
+    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    usleep(200);
+    return;
+#endif
+
 }
 
 void send_Rclick(inputs* inp)
