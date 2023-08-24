@@ -75,7 +75,6 @@ void process_inputs(TCP_SOCKET* sock, inputs* inp)
 			printf("X:%d, Y:%d, winX:%d, winY:%d\n", x, y, relx, rely);
 			printf("realX: %d, realY: %d\n", realX, realY);
 			set_mouse_pos(inp, realX, realY);
-			Sleep(2);
 			if (click_type == (char)CLICK_LEFT)
 			{
 				printf("Left click\n");
@@ -108,6 +107,36 @@ void process_inputs(TCP_SOCKET* sock, inputs* inp)
 			mod = ntohl(*(uint32_t*)((char*)buffer + i));
 			i += 4;
 			//send_key_press(inp, key, mod, SDL_INPUT);
+			break;
+		case mouse_input_hold:
+			i += 4;
+			x = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			y = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			relx = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			rely = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			realX = inp->screen_w * (float)((float)x / (float)relx);
+			realY = inp->screen_h * (float)((float)y / (float)rely);
+			set_mouse_pos(inp, realX, realY);
+			send_Lhold(inp);
+			break;
+		case mouse_input_release:
+			i += 4;
+			x = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			y = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			relx = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			rely = ntohl(*(uint32_t*)((char*)buffer + i));
+			i += 4;
+			realX = inp->screen_w * (float)((float)x / (float)relx);
+			realY = inp->screen_h * (float)((float)y / (float)rely);
+			set_mouse_pos(inp, realX, realY);
+			send_Lrelease(inp);
 			break;
 		default:
 			i+=12;
