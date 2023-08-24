@@ -42,6 +42,79 @@ int resized_size = 0, buffer_size = 0, screen_width = 0, screen_height = 0;
 
 basic_video_dec* basic_dec = NULL;
 
+void convert_to_aspect_ratio(int Xcoord, int Ycoord, int srcW, int srcH, int destW, int destH, int *rightX, int *rightY)
+{
+	float aspect_ratio = (float)srcW / (float)srcH;
+	float dest_aspect_ratio = (float)destW / (float)destH;
+	float new_w, new_h, Wdiff, Hdiff;
+
+	float epsilon = 0.0001;
+	if (abs(aspect_ratio - dest_aspect_ratio) < epsilon)
+	{
+		*rightX = Xcoord;
+		*rightY = Ycoord;
+		return;
+	}
+	if (aspect_ratio < dest_aspect_ratio)
+	{
+		new_h = (float)(destH - (int)destH%18);
+		Hdiff = (float)srcH - new_h;
+		new_w = (float)srcW * dest_aspect_ratio;
+		Wdiff = (float)srcW - new_w;
+	}
+	else
+	{
+		new_w = (float)(destW - (int)destW%16);
+		Wdiff = (float)srcW - new_w;
+		new_h = (float)srcH * dest_aspect_ratio;
+		Hdiff = (float)srcH - new_h;
+	}
+	
+	*rightX = (int)Xcoord + (int)(Wdiff/2);
+	*rightY = (int)Ycoord + (int)(Hdiff/2);
+}
+
+/** @brief Gets and writes the real size of the rectangle that we are actuall drawing unto
+ * 
+ * @param srcW the source rectangle width
+ * @param srcH the source rectangle height
+ * @param destW the destination s rectangle width (server screen width)
+ * @param destH the destination s rectangle height (server screen height)
+ * @param goodW pointer to where the actual width will be written
+ * @param goodH pointer to where the actuial width will be written
+*/
+void real_rect(int srcW, int srcH, int destW, int destH, int *goodW, int *goodH)
+{
+	float aspect_ratio = (float)srcW / (float)srcH;
+	float dest_aspect_ratio = (float)destW / (float)destH;float epsilon = 0.0001;
+	if (abs(aspect_ratio - dest_aspect_ratio) < epsilon)
+	{
+		*goodW = srcW;
+		*goodH = srcH;
+		return;
+	}
+	if (aspect_ratio < dest_aspect_ratio)
+	{
+		*goodH = (float)(destH - (int)destH%18);
+		*goodW = (float)srcW * dest_aspect_ratio;
+	}
+	else
+	{
+		*goodW = (float)(destW - (int)destW%16);
+		*goodH = (float)srcH * dest_aspect_ratio;
+	}
+	
+}
+
+bool is_point_inside_rect(int x, int y, int rectX, int rectY, int rectW, int rectH)
+{
+	if (x >= rectX && x <= rectX + rectW && y >= rectY && y <= rectY + rectH)
+	{
+		return true;
+	}
+	return false;
+}
+
 void init_decoder(uint16_t w, uint16_t h)
 {
 	basic_dec = basic_create_video_dec(w, h, 0, VIDEO_YUV420, RLE_TWO_PASS);
@@ -162,11 +235,11 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 					new_width = (int)((float)new_width * zoom_ratio);
 					new_height = (int)((float)new_height * zoom_ratio);
 				}
-				resize_image_bilinear_blocks_preserve_aspect((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, new_width, new_height,
+				resize_image_bilinear((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, new_width, new_height,
 				renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);
 			}
 			else
-			{resize_image_bilinear_blocks_preserve_aspect((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, screen_width, screen_height,
+			{resize_image_bilinear((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, screen_width, screen_height,
 				renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);}
 			clock_t en = clock();
 			printf("Second resize: %d\n", en - st);
@@ -322,7 +395,7 @@ int main(int argc, char* argv[])
 	keypresses = (char*)malloc(1000);
 	keypresses_size = 0;
 
-	int mouseX, mouseY, relativeX, relativeY, windowX, windowY;
+	int mouseX, mouseY, relativeX, relativeY, windowW, windowH;
 	SDL_KeyboardEvent key;
 	SDL_Keycode keycode;
 	Uint16 modifiers;
@@ -416,7 +489,6 @@ int main(int argc, char* argv[])
 			case SDL_MOUSEBUTTONDOWN:
 				SDL_GetMouseState(&mouseX, &mouseY);
 
-				SDL_GetWindowPosition(renderer->window, &windowX, &windowY);
 				relativeX = mouseX;
 				relativeY = mouseY;
 				if (event.button.button == SDL_BUTTON_LEFT)
@@ -430,15 +502,6 @@ int main(int argc, char* argv[])
 						keypresses_size += 1;
 						keypresses[keypresses_size] = (char)CLICK_LEFT;
 						keypresses_size += 2;
-
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
-						keypresses_size += 4;
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
-						keypresses_size += 4;
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.w);
-						keypresses_size += 4;	
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.h);
-						keypresses_size += 4;
 					}
 					/* Regular click */
 					else if (event.button.clicks == 1)
@@ -447,16 +510,6 @@ int main(int argc, char* argv[])
 						keypresses_size += 1;
 						keypresses[keypresses_size] = (char)CLICK_LEFT;
 						keypresses_size += 3;
-
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
-						keypresses_size += 4;
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
-						keypresses_size += 4;
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.w);
-						keypresses_size += 4;	
-						*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.h);
-						keypresses_size += 4;
-
 					}
 				}
 				else if (event.button.button == SDL_BUTTON_RIGHT && event.button.clicks)
@@ -465,16 +518,6 @@ int main(int argc, char* argv[])
 					keypresses_size += 1;
 					keypresses[keypresses_size] = (char)CLICK_RIGHT;
 					keypresses_size += 3;
-
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.w);
-					keypresses_size += 4;	
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.h);
-					keypresses_size += 4;
-
 				}
 				else if (event.button.button == SDL_BUTTON_MIDDLE && event.button.clicks)
 				{
@@ -482,16 +525,6 @@ int main(int argc, char* argv[])
 					keypresses_size += 1;
 					keypresses[keypresses_size] = (char)CLICK_MIDDLE;
 					keypresses_size += 3;
-
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.w);
-					keypresses_size += 4;	
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.h);
-					keypresses_size += 4;
-
 				}
 				else if (event.button.button == SDL_BUTTON_X1 && event.button.clicks)
 				{
@@ -499,16 +532,6 @@ int main(int argc, char* argv[])
 					keypresses_size += 1;
 					keypresses[keypresses_size] = (char)CLICK_OEM1;
 					keypresses_size += 3;
-
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.w);
-					keypresses_size += 4;	
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.h);
-					keypresses_size += 4;
-
 				}
 				else if (event.button.button == SDL_BUTTON_X2 && event.button.clicks)
 				{
@@ -516,32 +539,60 @@ int main(int argc, char* argv[])
 					keypresses_size += 1;
 					keypresses[keypresses_size] = (char)CLICK_OEM2;
 					keypresses_size += 3;
-
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
-					keypresses_size += 4;
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.w);
-					keypresses_size += 4;	
-					*((int*)((char*)keypresses + keypresses_size)) = htonl(renderer->images[0][0]->rect.h);
-					keypresses_size += 4;
-
 				}
+				/* No click just a hold */
+				else 
+					if (event.button.button == SDL_BUTTON_LEFT)
+					{
+						keypresses[keypresses_size] = mouse_input_hold;
+						keypresses_size += 4;
+					}
+
+				real_rect(renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h,
+				 screen_width, screen_height, &windowW, &windowH);
+
+				/*
+				printf("RelativeX: %d, RelativeY: %d\n", relativeX, relativeY);
+				convert_to_aspect_ratio(relativeX, relativeY, renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h,
+				 screen_width, screen_height, &relativeX, &relativeY);
+				printf("RelativeX: %d, RelativeY: %d\n", relativeX, relativeY);
+				*/
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+				keypresses_size += 4;
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+				keypresses_size += 4;
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(windowW);
+				keypresses_size += 4;	
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(windowH);
+				keypresses_size += 4;
+				
 				break;
 			case SDL_MOUSEWHEEL:
 				keypresses[keypresses_size] = (char)mouse_input_scroll;
 				keypresses_size += 4;
-				*((int*)((char*)keypresses + keypresses_size)) = htonl(event.wheel.y);
-				keypresses_size += 4;
 				*((int*)((char*)keypresses + keypresses_size)) = htonl(event.wheel.x);
+				keypresses_size += 4;
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(event.wheel.y);
 				keypresses_size += 4;
 
 				break;
 			case SDL_MOUSEBUTTONUP:
 				if (event.button.button == SDL_BUTTON_LEFT)
 				{
-
+					keypresses[keypresses_size] = mouse_input_release;
+					keypresses_size += 4;
 				}
+				real_rect(renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h,
+				 screen_width, screen_height, &windowW, &windowH);
+
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeX);
+				keypresses_size += 4;
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
+				keypresses_size += 4;
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(windowW);
+				keypresses_size += 4;	
+				*((int*)((char*)keypresses + keypresses_size)) = htonl(windowH);
+				keypresses_size += 4;
 				break;
 			/*case SDL_MOUSEMOVE:
 				SDL_GetMouseState(&mouseX, &mouseY);	
