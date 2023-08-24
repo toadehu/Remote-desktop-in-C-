@@ -36,7 +36,7 @@ char* keypresses;
 void real_rect(int srcW, int srcH, int destW, int destH, int *goodW, int *goodH);
 
 /* This could be a funny macro though */
-void add_pos_to_buffer()
+void add_pos_to_buffer(GRAPHICS_RENDERER* renderer, int screen_width, int screen_height)
 {
 	int relativeX, relativeY, windowW, windowH;
 	SDL_GetMouseState(&relativeX, &relativeY);
@@ -424,7 +424,7 @@ int main(int argc, char* argv[])
 	buffer_start = clock();
 
 	/* Is the left mouse button being held? */
-	int left_hold = 0;
+	int left_hold = 0, sent_release = 0;
 
 	/*Main loop*/
 	while (loop)
@@ -516,7 +516,15 @@ int main(int argc, char* argv[])
 				relativeY = mouseY;
 				if (event.button.button == SDL_BUTTON_LEFT)
 				{
+					if (event.button.clicks > 1)
+					{
+						keypresses[keypresses_size] = (char)mouse_input_click;
+						keypresses_size += 1;
+						keypresses[keypresses_size] = (char)mouse_input_click;
+						keypresses_size += 3;
+					}
 					left_hold = 1;
+					break;
 				}
 				else if (event.button.button == SDL_BUTTON_RIGHT && event.button.clicks)
 				{
@@ -554,7 +562,7 @@ int main(int argc, char* argv[])
 						keypresses_size += 4;
 					}
 
-				add_pos_to_buffer();
+				add_pos_to_buffer(renderer, screen_width, screen_height);
 				
 				break;
 			case SDL_MOUSEWHEEL:
@@ -581,15 +589,21 @@ int main(int argc, char* argv[])
 			buffer_start = buffer_current;
 			if (left_hold == 1)
 			{
+				printf("Holding on\n");
 				keypresses[keypresses_size] = mouse_input_hold;
 				keypresses_size += 4;
-				add_pos_to_buffer();
+				add_pos_to_buffer(renderer, screen_width, screen_height);
+				sent_release = 0;
 			}
 			else if(left_hold == 0)
 			{
-				keypresses[keypresses_size] = mouse_input_release;
-				keypresses_size += 4;
-				add_pos_to_buffer();
+				if (sent_release == 0)
+				{
+					keypresses[keypresses_size] = mouse_input_release;
+					keypresses_size += 4;
+					add_pos_to_buffer(renderer, screen_width, screen_height);
+					sent_release = 1;
+				}
 			}
 			/* We send the input buffer */
 			if (keypresses_size)
