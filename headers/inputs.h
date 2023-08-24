@@ -132,6 +132,18 @@
 #define SDLK_RGUI 1073742055
 #define SDLK_MODE 1073742081
 
+/* The symbol keys like period, colon and so on*/
+#define SDLK_PERIOD 0x2E
+#define SDLK_COMMA 0x2C
+#define SDLK_SLASH 0x2F
+#define SDLK_BACKSLASH 0x5C
+#define SDLK_SEMICOLON 0x3B
+#define SDLK_QUOTE 0x27
+#define SDLK_LEFTBRACKET 0x5B
+#define SDLK_RIGHTBRACKET 0x5D
+#define SDLK_MINUS 0x2D
+#define SDLK_EQUALS 0x3D
+
 /* More special keys */
 #define SDLK_RETURN 13
 #define SDLK_ESCAPE 27
@@ -158,7 +170,7 @@
 
 /* Other keys */
 #define SDLK_PAUSE 1073741896
-#define SDLK_PRuint32_tSCREEN 1073741894
+#define SDLK_PRINTSCREEN 1073741894
 #define SDLK_APPLICATION 1073741925 /* Often referred to as the 'menu' */
 #define SDLK_EXECUTE 1073741940
 #define SDLK_HELP 1073741941
@@ -341,6 +353,17 @@ uint32_t convertSDL2KeyToWIN32(uint32_t keycode)
         case SDLK_F13+9: return VK_F22;
         case SDLK_F13+10: return VK_F23;
         case SDLK_F13+11: return VK_F24;
+        case SDLK_PERIOD: return VK_OEM_PERIOD;
+        case SDLK_COMMA: return VK_OEM_COMMA;
+        /* Such intuitive names VK_OEM_7 really feels like it should be the quote button, yeah sure */
+        case SDLK_SLASH: return VK_OEM_2;
+        case SDLK_BACKSLASH: return VK_OEM_5;
+        case SDLK_SEMICOLON: return VK_OEM_1;
+        case SDLK_QUOTE: return VK_OEM_7;
+        case SDLK_LEFTBRACKET: return VK_OEM_4;
+        case SDLK_RIGHTBRACKET: return VK_OEM_6;
+        case SDLK_MINUS: return VK_OEM_MINUS;
+        case SDLK_EQUALS: return VK_OEM_PLUS;
         case SDLK_LSHIFT: return VK_LSHIFT;
         case SDLK_RSHIFT: return VK_RSHIFT;
         case SDLK_LCTRL: return VK_LCONTROL;
@@ -365,7 +388,7 @@ uint32_t convertSDL2KeyToWIN32(uint32_t keycode)
         case SDLK_DELETE: return VK_DELETE;
         case SDLK_END: return VK_END;
         case SDLK_PAUSE: return VK_PAUSE;
-        case SDLK_PRuint32_tSCREEN: return VK_SNAPSHOT;
+        case SDLK_PRINTSCREEN: return VK_SNAPSHOT;
         case SDLK_APPLICATION: return VK_APPS;
         case SDLK_HELP: return VK_HELP;
         case SDLK_MENU: return VK_MENU;
@@ -532,6 +555,17 @@ uint32_t convertSDL2KeyToUInput(uint32_t keycode)
     /* All other special keys */
     switch (keycode)
     {
+        /* Symbols */
+        case SDLK_PERIOD: return KEY_DOT;
+        case SDLK_COMMA: return KEY_COMMA;
+        case SDLK_SLASH: return KEY_SLASH;
+        case SDLK_BACKSLASH: return KEY_BACKSLASH;
+        case SDLK_SEMICOLON: return KEY_SEMICOLON;
+        case SDLK_QUOTE: return KEY_APOSTROPHE;
+        case SDLK_LEFTBRACKET: return KEY_LEFTBRACE;
+        case SDLK_RIGHTBRACKET: return KEY_RIGHTBRACE;
+        case SDLK_MINUS: return KEY_MINUS;
+        case SDLK_EQUALS: return KEY_EQUAL;
         /* "Usual" special keys */
         case SDLK_RETURN: return KEY_ENTER;
         case SDLK_ESCAPE: return KEY_ESC;
@@ -564,7 +598,7 @@ uint32_t convertSDL2KeyToUInput(uint32_t keycode)
         /* case SDLK_PAGEDOWN: return KEY_PAGEDOWN; */
         /* Other keys */
         case SDLK_PAUSE : return KEY_PAUSE;
-        case SDLK_PRuint32_tSCREEN : return KEY_SYSRQ;
+        case SDLK_PRINTSCREEN : return KEY_SYSRQ;
         case SDLK_APPLICATION : return KEY_COMPOSE;
         /* case SDLK_EXECUTE : return KEY_EXE; */
         case SDLK_HELP : return KEY_HELP;
@@ -738,6 +772,22 @@ void register_regular_keys(inputs* inp)
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_DOWN);
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_LEFT);
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_RIGHT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_INSERT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_HOME);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PAGEUP);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_DELETE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_END);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_PAGEDOWN);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_DOT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_COMMA);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_SLASH);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_BACKSLASH);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_SEMICOLON);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_APOSTROPHE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_LEFTBRACE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_RIGHTBRACE);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_MINUS);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_EQUAL);
 }
 
 /* The name is misleading, this also registers some more keys that are usually next to the numpad */
