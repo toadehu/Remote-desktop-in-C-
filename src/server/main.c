@@ -31,7 +31,7 @@ void process_inputs(TCP_SOCKET* sock, inputs* inp)
 	char buffer[400];
 	int rez = TCP_Socket_receive_data_once(sock, 0, buffer, 400);
 	int i;
-	uint32_t key, mod;
+	uint32_t key, mods;
 	int32_t x,y,relx,rely;
 	uint32_t realX, realY;
 	char click_type;
@@ -104,11 +104,12 @@ void process_inputs(TCP_SOCKET* sock, inputs* inp)
 			i += 4;
 			key = ntohl(*(uint32_t*)((char*)buffer + i));
 			i += 4;
-			mod = ntohl(*(uint32_t*)((char*)buffer + i));
+			mods = ntohl(*(uint32_t*)((char*)buffer + i));
 			i += 4;
-			//send_key_press(inp, key, mod, SDL_INPUT);
+			send_key(inp, key, mods, SDL_INPUT);
 			break;
 		case mouse_input_hold:
+			printf("HOlD\n");
 			i += 4;
 			x = ntohl(*(uint32_t*)((char*)buffer + i));
 			i += 4;
@@ -143,6 +144,7 @@ void process_inputs(TCP_SOCKET* sock, inputs* inp)
 			printf("Unknown input\n");
 			break;
 		}
+		printf("i:%d\n", i);
 	}
 }
 
