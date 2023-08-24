@@ -21,12 +21,13 @@
 enum frame_type
 {
     new_frame = 0x01,
-    mouse_input_move = 0x02,
+    mouse_input_release = 0x00,
+    mouse_input_hold = 0x02,
+    mouse_input_move = 0x03,
     mouse_input_click = 0x04,
-    mouse_input_scroll = 0x08,
-    mouse_input_oem = 0x10,
-    keybd_input = 0x20,
-    auth = 0x80
+    mouse_input_scroll = 0x05,
+    mouse_input_oem = 0x05,
+    keybd_input = 0x06
 };
 
 
