@@ -4,7 +4,6 @@
 
 typedef unsigned char byte;
 
-
 #ifdef __AVX2__
 #include <immintrin.h>
 
@@ -297,6 +296,7 @@ void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
 
 #endif
 
+
 void YUV420ToARGB(char *yuv, int width, int height, char *argb)
 {
     int plane_size = width * height;
@@ -542,7 +542,7 @@ char bilinear_interpolate_SIMD(const char *src, float x, float y, int width, int
 
 #endif
 
-char bilinear_interpolate(const byte *src, float x, float y, int width, int height, int channels, int channel)
+byte bilinear_interpolate(const byte *src, float x, float y, int width, int height, int channels, int channel)
 {
     int x1 = (int)x;
     int x2 = x1 + 1;
@@ -562,7 +562,7 @@ char bilinear_interpolate(const byte *src, float x, float y, int width, int heig
     float R1 = (1 - x_frac) * Q11 + x_frac * Q21;
     float R2 = (1 - x_frac) * Q12 + x_frac * Q22;
 
-    return (char)((1 - y_frac) * R1 + y_frac * R2);
+    return (byte)((1 - y_frac) * R1 + y_frac * R2);
 }
 
 void resize_image_bilinear(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
@@ -610,6 +610,47 @@ void resize_image_bilinear(const byte *src, byte *dst, int src_width, int src_he
         }
     }
 } 
+
+void resize_image_bilinear_blocks(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+{    
+    float x_ratio = (float)(src_width) / (float)dst_width;
+    float y_ratio = (float)(src_height) / (float)dst_height;
+
+    const int BLOCK_SIZE = 8;
+
+    int block_start_y, block_start_x, block_end_x, block_end_y, dst_y, dst_x, x, channel;
+    for (block_start_y = 0; block_start_y < src_height; block_start_y += BLOCK_SIZE) 
+    {
+        for (block_start_x = 0; block_start_x < src_width; block_start_x += BLOCK_SIZE) 
+        {
+            int block_end_x = block_start_x + BLOCK_SIZE > src_width ? src_width : block_start_x + BLOCK_SIZE;
+            int block_end_y = block_start_y + BLOCK_SIZE > src_height ? src_height : block_start_y + BLOCK_SIZE;
+            
+            for (dst_y = block_start_y; dst_y < block_end_y; dst_y++)
+            {
+                for (dst_x = block_start_x; dst_x < block_end_x; dst_x++)
+                {
+                    float src_x = dst_x * x_ratio;
+                    float src_y = dst_y * y_ratio;
+
+                    int base_index = dst_y * dst_width + dst_x ;
+
+                    for (channel = 0; channel < channels; channel++)
+                    {
+                        if (channel == 3)
+                        {
+                            dst[base_index * channels + channel] = 255;
+                        }
+                        else
+                        {
+                            dst[base_index * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 void bilinear_resize_plane(const byte* src, byte* dst, int src_width, int src_height, int dst_width, int dst_height, float x_ratio, float y_ratio) 
 {
@@ -1005,3 +1046,175 @@ void zoom_image(const byte *src, byte** dst, int src_width, int src_height, int 
         memcpy(&dst[(i - x_start) * dst_height], src[(i * src_height + y_start) * 4], dst_height * 4);
     }
 }
+
+const int FIXED_POINT = 10;
+
+byte bilinear_interpolate_fixed_point(const byte *src, int x, int y, int width, int height, int channels, int channel)
+{
+    /* Bitmask to essentially compute x % 2^FIXED_POINT but in a fancy way */
+    int x1 = x & (~((1<<FIXED_POINT)-1));
+    int y1 = y & (~((1<<FIXED_POINT)-1));
+
+    int _x1 = x1 >> FIXED_POINT;
+    int _y1 = y1 >> FIXED_POINT;
+
+    int _x2 = _x1 + 1;
+    if (_x2 >= width) _x2--;
+    int _y2 = _y1 + 1;
+    if (_y2 >= height) _y2--;
+
+    int x_frac = x - x1;
+    int y_frac = y - y1;
+
+    byte Q11 = src[(_y1 * width + _x1) * channels + channel];
+    byte Q12 = src[(_y2 * width + _x1) * channels + channel];
+    byte Q21 = src[(_y1 * width + _x2) * channels + channel];
+    byte Q22 = src[(_y2 * width + _x2) * channels + channel];
+
+
+    int R1 = ((((1<<FIXED_POINT)-1) - x_frac) * Q11 + x_frac * Q21) >> FIXED_POINT;
+    int R2 = ((((1<<FIXED_POINT)-1) - x_frac) * Q12 + x_frac * Q22) >> FIXED_POINT;
+
+    return (byte)(((((1<<FIXED_POINT)-1) - y_frac) * R1 + y_frac * R2) >> FIXED_POINT);
+}
+
+/* This might look goofy, but it is about 10-20% faster than using floatin point arithmetics, so that's good */
+void resize_image_bilinear_fixed_point(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+{
+    int interpolate_width = src_width << FIXED_POINT, interpolate_height = src_height << FIXED_POINT;
+    int x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+
+    int dst_y, dst_x, x, channel;
+    for (dst_y = 0; dst_y < dst_height; dst_y++)
+    {
+        int src_y = dst_y * y_ratio;
+        for (dst_x = 0; dst_x < dst_width; dst_x+=8)
+        {
+            for (x = 0; x < 8; x++)
+            {
+                int src_x = (x + dst_x) * x_ratio;
+
+                for (channel = 0; channel < channels; channel++)
+                {
+                    if (channel == 3)
+                    {
+                        dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                        continue;
+                    }
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = bilinear_interpolate_fixed_point(src, src_x, src_y,
+                        src_width, src_height, channels, channel);
+                }
+            }
+        }
+        for (dst_x = dst_width & ~7; dst_x < dst_width; dst_x++)
+        {
+            float src_x = dst_x * x_ratio;
+            float src_y = dst_y * y_ratio;
+
+            for (channel = 0; channel < channels; channel++)
+            {
+                if (channel == 3)
+                {
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                    continue;
+                }
+                dst[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
+            }
+        }
+    }
+} 
+
+
+/* Nothing here is faster than the code above, but it was worth trying */
+const int BLOCK_SIZE = 8;
+
+void bilinear_interpolate_block(const byte *src, int src_width, int src_height, int dst_width, int dst_height, int x_ratio, int y_ratio, int start_dst_x, int start_dst_y, int end_dst_x, int end_dst_y, byte *dst, int channels)
+{
+    int dst_y, dst_x, channel;
+
+    for (dst_y = start_dst_y; dst_y < end_dst_y; dst_y++)
+    {
+        int src_y = dst_y * y_ratio;
+        
+        for (dst_x = start_dst_x; dst_x < end_dst_x; dst_x++)
+        {
+            int src_x = dst_x * x_ratio;
+
+            for (channel = 0; channel < channels; channel++)
+            {
+                if (channel == 3)
+                {
+                    dst[(dst_y * dst_width + dst_x) * channels + channel] = 255;
+                    continue;
+                }
+                dst[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate_fixed_point(src, src_x, src_y, src_width, src_height, channels, channel);
+            }
+        }
+    }
+}
+
+void resize_image_bilinear_fixed_point_block(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+{
+    int x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+
+    int block_start_y, block_start_x;
+    for (block_start_y = 0; block_start_y < dst_height; block_start_y += BLOCK_SIZE)
+    {
+        for (block_start_x = 0; block_start_x < dst_width; block_start_x += BLOCK_SIZE)
+        {
+            int block_end_x = (block_start_x + BLOCK_SIZE > dst_width) ? dst_width : block_start_x + BLOCK_SIZE;
+            int block_end_y = (block_start_y + BLOCK_SIZE > dst_height) ? dst_height : block_start_y + BLOCK_SIZE;
+            
+            bilinear_interpolate_block(src, src_width, src_height, dst_width, dst_height, x_ratio, y_ratio, block_start_x, block_start_y, block_end_x, block_end_y, dst, channels);
+        }
+    }
+}
+
+uint32_t expand_bits(uint32_t v) {
+    v = (v * 0x00010001u) & 0xFF0000FFu;
+    v = (v * 0x00000101u) & 0x0F00F00Fu;
+    v = (v * 0x00000011u) & 0xC30C30C3u;
+    v = (v * 0x00000005u) & 0x49249249u;
+    return v;
+}
+
+uint32_t morton_encode(uint32_t x, uint32_t y) {
+    return (expand_bits(x) << 1) + expand_bits(y);
+}
+
+void resize_image_bilinear_fixed_point_Z(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+{
+    int x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+
+    int num_blocks_x = (dst_width + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int num_blocks_y = (dst_height + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    int block_idx;
+    uint32_t i;
+    /* Iterate over blocks in Morton order */
+    for (block_idx = 0; block_idx < num_blocks_x * num_blocks_y; block_idx++)
+    {
+        uint32_t block_x = 0, block_y = 0;
+        /* Decode Morton order into block_x and block_y */
+        for (i = 0; i < (sizeof(uint32_t) * 8) / 2; i++)
+        {
+            block_x |= (block_idx & (1U << (i * 2))) >> i;
+            block_y |= (block_idx & (2U << (i * 2))) >> (i + 1);
+        }
+
+        if (block_x >= num_blocks_x || block_y >= num_blocks_y)
+            continue;  /* Out of bounds */
+
+        int block_start_x = block_x * BLOCK_SIZE;
+        int block_start_y = block_y * BLOCK_SIZE;
+        int block_end_x = (block_start_x + BLOCK_SIZE > dst_width) ? dst_width : block_start_x + BLOCK_SIZE;
+        int block_end_y = (block_start_y + BLOCK_SIZE > dst_height) ? dst_height : block_start_y + BLOCK_SIZE;
+
+        bilinear_interpolate_block(src, src_width, src_height, dst_width, dst_height,
+         x_ratio, y_ratio, block_start_x, block_start_y, block_end_x, block_end_y, dst, channels);
+    }
+}
+
