@@ -1218,3 +1218,70 @@ void resize_image_bilinear_fixed_point_Z(const byte *src, byte *dst, int src_wid
     }
 }
 
+/**
+ * @brief Resize an image using bilinear interpolation, starting at dst_total_offset, and going for compute_bytes worth of data(
+ * make sure to allign everything to the number of channels)
+ * 
+ * @param src Source image bytes
+ * @param dst Destination image bytes
+ * @param src_width Source image width
+ * @param src_height Source image height
+ * @param dst_width Destination image width
+ * @param dst_height Destination image height
+ * @param channels Number of channels in the image
+ * @param dst_total_offset Offset in the destination image to start writing to
+ * @param compute_bytes Number of bytes to compute and write in the destination 
+*/
+void resize_image_bilinear_fixed_point_offset(const byte *src, byte *dst, int src_width, int src_height,
+ int dst_width, int dst_height, int channels, int dst_total_offset, int compute_bytes)
+{
+    int interpolate_width = src_width << FIXED_POINT, interpolate_height = src_height << FIXED_POINT;
+    int x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+
+    /* This is so much boilerplate  but might prove to be useful when doing multithreading */
+    int start_x, start_y, end_x, end_y;
+    start_x = dst_total_offset % (dst_width * channels);
+    start_y = dst_total_offset / (dst_height * channels);
+    end_x = (dst_total_offset + compute_bytes) % (dst_width * channels);
+    end_y = (dst_total_offset + compute_bytes) / (dst_height * channels);
+
+    int dst_y, dst_x, x, channel;
+    for (dst_y = start_y; dst_y < dst_height; dst_y++)
+    {
+        int src_y = dst_y * y_ratio;
+        for (dst_x = start_x; dst_x < dst_width; dst_x+=8)
+        {
+            for (x = 0; x < 8; x++)
+            {
+                int src_x = (x + dst_x) * x_ratio;
+
+                for (channel = 0; channel < channels; channel++)
+                {
+                    if (channel == 3)
+                    {
+                        dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                        continue;
+                    }
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = bilinear_interpolate_fixed_point(src, src_x, src_y,
+                        src_width, src_height, channels, channel);
+                }
+            }
+        }
+        for (dst_x = dst_width & ~7; dst_x < dst_width; dst_x++)
+        {
+            float src_x = dst_x * x_ratio;
+            float src_y = dst_y * y_ratio;
+
+            for (channel = 0; channel < channels; channel++)
+            {
+                if (channel == 3)
+                {
+                    dst[(dst_y * dst_width + x + dst_x) * channels + channel] = 255;
+                    continue;
+                }
+                dst[(dst_y * dst_width + dst_x) * channels + channel] = bilinear_interpolate(src, src_x, src_y, src_width, src_height, channels, channel);
+            }
+        }
+    }
+}
