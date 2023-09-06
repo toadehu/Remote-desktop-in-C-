@@ -24,6 +24,16 @@ typedef pthread_attr_t attr_t;
 
 #endif
 
+/* Just a wrapper fot the mutex type and it's associated functions */
+typedef struct mutex_agn
+{
+    #ifdef _WIN32
+    HANDLE mutex;
+    #else
+    pthread_mutex_t mutex;
+    #endif
+}mutex_agn;
+
 typedef struct thread
 {
     thread_handle handle;
@@ -121,4 +131,51 @@ void execute_async(void (*foo)(void*), void* arg)
     pthread_create(&thread_id, NULL, foo, arg);
     pthread_detach(thread_id);
 #endif
+}
+
+/**
+ * @brief Locks the given mutex, this function will wait and undetermined amount of time
+ * 
+ * @param m The mutex to lock
+*/
+void _mutex_lock_agn(mutex_agn* m)
+{
+    #ifdef _WIN32
+    WaitForSingleObject(m->mutex, INFINITE);
+    #else
+    pthread_mutex_lock(&m->mutex);
+    #endif
+}
+
+/**
+ * @brief Locks the given mutex, this function will wait for the given amount of time
+ * 
+ * @param m The mutex to lock
+ * @param miliseconds The amount of time to wait, in miliseconds
+*/
+void _mutex_lock_fixed_time_agn(mutex_agn* m, int miliseconds)
+{
+    #ifdef _WIN32
+    WaitForSingleObject(m->mutex, miliseconds);
+    #else
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += miliseconds / 1000;
+    ts.tv_nsec += (miliseconds % 1000) * 1000;
+    pthread_mutex_timedlock(&m->mutex, &ts);
+    #endif
+}
+
+/**
+ * @brief Unlock the given mutex
+ * 
+ * @param m The mutex to unlock
+*/
+void _mutex_unlock_agn(mutex_agn* m)
+{
+    #ifdef _WIN32
+    ReleaseMutex(m);
+    #else
+    pthread_mutex_unlock(m);
+    #endif   
 }
