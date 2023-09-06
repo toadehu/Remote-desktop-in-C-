@@ -24,6 +24,47 @@ state_machine *state_m;
 
 typedef unsigned char byte;
 
+thread thr1, thr2;
+
+mutex_agn mutex1, mutex2;
+
+typedef struct thread_layout
+{
+	byte *src, *dst;
+	int src_width, src_height, dst_width, dst_height, channels;
+	mutex_agn mutex;
+};
+
+struct thread_layout* thr_data1, thr_data2;
+
+void bilinear_interpolate_wrapper_func(void* args)
+{
+	struct thread_layout* args_cast = (struct thread_layout*)args;
+	while (true)
+	{
+		_mutex_lock_agn();
+		resize_image_bilinear_fixed_point(args_cast->src, args_cast->dst, 
+	args_cast->src_width, args_cast->src_height, args_cast->dst_width, args_cast->dst_height, args_cast->channels);
+	}
+}
+
+void init_threads()
+{
+	thr_data1 = (struct thread_layout*)malloc(sizeof(struct thread_layout));
+	thr_data2 = (struct thread_layout*)malloc(sizeof(struct thread_layout));
+	thr_data1->channels = 4;
+	thr_data2->channels = 4;
+	thr_data1->mutex=mutex1;
+	thr_data2->mutex=mutex2;
+	thr1 = thread_create((void*)bilinear_interpolate_wrapper_func, (void*)thr_data1);
+	thr2 = thread_create((void*)bilinear_interpolate_wrapper_func, (void*)thr_data2);
+}
+
+#define udpate_thread_ptr(thr_data, ptr1, ptr2) thr_data->src=ptr1,thr_data->dst=ptr2 
+#define update_thread_data(thr_data, v1, v2, v3, v4) thr_data->src_width=v1,thr_data->src_height=v2,thr_data->dst_width=v3,thr_data->dst_height=v4
+
+void
+
 /* How often should the key presses buffer be send, in milliseconds */
 const int keybufferinterval = 25; 
 
