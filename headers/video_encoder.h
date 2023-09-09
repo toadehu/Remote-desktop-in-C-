@@ -14,13 +14,13 @@ typedef unsigned char byte;
 #include <immintrin.h>
 
 /*I think this does NOT work*/
-void ARGBToYUV420_SSE2 (char **argb, int width, int height, char **yuv) {
-    int plane_size = width * height;
+void ARGBToYUV420_SSE2 (char **argb, int_fast32_t width, int_fast32_t height, char **yuv) {
+    int_fast32_t plane_size = width * height;
     char *y_plane = *yuv;
     char *u_plane = *yuv + plane_size;
     char *v_plane = *yuv + plane_size + (plane_size >> 2);
     char *orig_argb_ptr = *argb;
-    int argb_index = 0;
+    int_fast32_t argb_index = 0;
 
     const __m128i shuffle_mask = _mm_set_epi8(15, 12, 9, 6, 3, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
     const __m128i y_coeffs = _mm_set_epi16(0, 25, 129, 66, 0, 25, 129, 66);
@@ -29,7 +29,7 @@ void ARGBToYUV420_SSE2 (char **argb, int width, int height, char **yuv) {
     const __m128i y_offset = _mm_set1_epi16(16);
     const __m128i uv_offset = _mm_set1_epi16(128);
 
-    int i,j;
+    int_fast32_t i,j;
     for (j = 0; j < height; j+=1) {
         /*printf("Current index:%d\n", argb_index);*/
         for (i = 0; i < width; i += 8) { /* Process 8 pixels per iteration*/
@@ -78,13 +78,13 @@ void ARGBToYUV420_SSE2 (char **argb, int width, int height, char **yuv) {
     printf("Total theortical size:%d\n", width * height * 4);
 }
 
-void ARGBToYUV420_AVX2(char **argb, int width, int height, char **yuv) {
-    int plane_size = width * height;
+void ARGBToYUV420_AVX2(char **argb, int_fast32_t width, int_fast32_t height, char **yuv) {
+    int_fast32_t plane_size = width * height;
     char *y_plane = *yuv;
     char *u_plane = *yuv + plane_size;
     char *v_plane = *yuv + plane_size + (plane_size >> 2);
 
-    int argb_index = 0;
+    int_fast32_t argb_index = 0;
 
     const __m256i shuffle_mask = _mm256_set_epi8(15, 12, 9, 6, 3, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 15, 12, 9, 6, 3, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
     const __m256i y_coeffs = _mm256_set_epi16(0, 25, 129, 66, 0, 25, 129, 66, 0, 25, 129, 66, 0, 25, 129, 66);
@@ -97,7 +97,7 @@ void ARGBToYUV420_AVX2(char **argb, int width, int height, char **yuv) {
     __m256i lower_bound = _mm256_set1_epi8(0);
     __m256i upper_bound = _mm256_set1_epi8(255);
 
-    int i,j;
+    int_fast32_t i,j;
     for (j = 0; j < height; j++) {
         for (i = 0; i < width; i += 16) { /* Process 16 pixels per iteration*/
             __m256i argb0 = _mm256_lddqu_si256((__m256i *)(*argb + argb_index + (i + 0)));
@@ -153,31 +153,31 @@ void ARGBToYUV420_AVX2(char **argb, int width, int height, char **yuv) {
 /*to do*/
 #endif
 
-void ARGBToYUV420(char **argb, int width, int height, char **yuv) 
+void ARGBToYUV420(char **argb, int_fast32_t width, int_fast32_t height, char **yuv) 
 {
-    int plane_size = width * height;
+    int_fast32_t plane_size = width * height;
     char *y_plane = *yuv;
     char *u_plane = *yuv + plane_size;
     char *v_plane = *yuv + plane_size + (plane_size >> 2);
 
-    int argb_index = 0;
-    int y_index = 0, uv_index = 0;
+    int_fast32_t argb_index = 0;
+    int_fast32_t y_index = 0, uv_index = 0;
 
-    int i,j;
+    int_fast32_t i,j;
     for (j = 0; j < height; j+=1) 
     {
         for (i = 0; i < width; i+=1) 
         {
-            int b = (byte)*(*argb + argb_index);
+            int_fast32_t b = (byte)*(*argb + argb_index);
             argb_index+=1;
-            int g = (byte)*(*argb + argb_index);
+            int_fast32_t g = (byte)*(*argb + argb_index);
             argb_index+=1;
-            int r = (byte)*(*argb + argb_index);
+            int_fast32_t r = (byte)*(*argb + argb_index);
             argb_index+=2; /* Skip the alpha channel*/
 
-            int y = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
-            int u = ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128;
-            int v = ((112 * r - 94 * g - 18 * b + 128) >> 8) + 128;
+            int_fast32_t y = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
+            int_fast32_t u = ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128;
+            int_fast32_t v = ((112 * r - 94 * g - 18 * b + 128) >> 8) + 128;
 
             y_plane[y_index] = (char)(y < 0 ? 0 : (y > 255 ? 255 : y));
             y_index+=1;
@@ -201,7 +201,7 @@ void ARGBToYUV420(char **argb, int width, int height, char **yuv)
 bool checkAVX2Support()
 {
 #ifdef _MSC_VER
-    int info[4];
+    int_fast32_t info[4];
     __cpuid(info, 0); /* Get the highest supported function ID */
     if (info[0] < 7)
         return false;
@@ -221,10 +221,10 @@ bool checkAVX2Support()
 
 #ifdef __AVX2__
 
-void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
+void YUV420ToARGB_AVX2(char* yuv, int_fast32_t width, int_fast32_t height, char* argb)
 {
-    int plane_size = width * height;
-    int argb_index = 0;
+    int_fast32_t plane_size = width * height;
+    int_fast32_t argb_index = 0;
     char* y_plane = yuv;
     char* u_plane = yuv + plane_size;
     char* v_plane = yuv + plane_size + plane_size / 4;
@@ -239,11 +239,11 @@ void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
     const __m256i clamp_min = _mm256_setzero_si256();
     const __m256i clamp_max = _mm256_set1_epi16(255);
 
-    int i,j;
+    int_fast32_t i,j;
     for (j = 0; j < height; j++)
     {
-        int vert_offset = (j >> 1) * (width >> 1);
-        int vert_offset2 = j * width;
+        int_fast32_t vert_offset = (j >> 1) * (width >> 1);
+        int_fast32_t vert_offset2 = j * width;
 
         for (i = 0; i < width; i += 16)
         {
@@ -297,30 +297,30 @@ void YUV420ToARGB_AVX2(char* yuv, int width, int height, char* argb)
 #endif
 
 
-void YUV420ToARGB(char *yuv, int width, int height, char *argb)
+void YUV420ToARGB(char *yuv, int_fast32_t width, int_fast32_t height, char *argb)
 {
-    int plane_size = width * height;
-    int argb_index = 0;
+    int_fast32_t plane_size = width * height;
+    int_fast32_t argb_index = 0;
     char* y_plane = yuv;
     char* u_plane = yuv + plane_size;
     char* v_plane = yuv + plane_size + plane_size / 4;
-    int i,j;
+    int_fast32_t i,j;
     for (j = 0; j < height; j+=1){
-        int vert_offset = (j >> 1) * (width >> 1);
-        int vert_offset2 = j * width;
+        int_fast32_t vert_offset = (j >> 1) * (width >> 1);
+        int_fast32_t vert_offset2 = j * width;
         for (i = 0; i < width; i+=1)
         {
-            int y = (byte)y_plane[vert_offset2 + i];
-            int u = (byte)u_plane[vert_offset + (i >> 1)];
-            int v = (byte)v_plane[vert_offset + (i >> 1)];
+            int_fast32_t y = (byte)y_plane[vert_offset2 + i];
+            int_fast32_t u = (byte)u_plane[vert_offset + (i >> 1)];
+            int_fast32_t v = (byte)v_plane[vert_offset + (i >> 1)];
 
-            int c = y - 16;
-            int d = u - 128;
-            int e = v - 128;
+            int_fast32_t c = y - 16;
+            int_fast32_t d = u - 128;
+            int_fast32_t e = v - 128;
 
-            int r = (298 * c + 409 * e + 128) >> 8;
-            int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-            int b = (298 * c + 516 * d + 128) >> 8;
+            int_fast32_t r = (298 * c + 409 * e + 128) >> 8;
+            int_fast32_t g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+            int_fast32_t b = (298 * c + 516 * d + 128) >> 8;
 
             r = r < 0 ? 0 : (r > 255 ? 255 : r);
             g = g < 0 ? 0 : (g > 255 ? 255 : g);
@@ -334,30 +334,30 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
     }
 }
 
-void YUV420ToRGB24(char* yuv, int width, int height, char* argb)
+void YUV420ToRGB24(char* yuv, int_fast32_t width, int_fast32_t height, char* argb)
 {
-    int plane_size = width * height;
-    int argb_index = 0;
+    int_fast32_t plane_size = width * height;
+    int_fast32_t argb_index = 0;
     char* y_plane = yuv;
     char* u_plane = yuv + plane_size;
     char* v_plane = yuv + plane_size + plane_size / 4;
-    int i, j;
+    int_fast32_t i, j;
     for (j = 0; j < height; j += 1) {
-        int vert_offset = (j >> 1) * (width >> 1);
-        int vert_offset2 = j * width;
+        int_fast32_t vert_offset = (j >> 1) * (width >> 1);
+        int_fast32_t vert_offset2 = j * width;
         for (i = 0; i < width; i += 1)
         {
-            int y = (byte)y_plane[vert_offset2 + i];
-            int u = (byte)u_plane[vert_offset + (i / 2)];
-            int v = (byte)v_plane[vert_offset + (i / 2)];
+            int_fast32_t y = (byte)y_plane[vert_offset2 + i];
+            int_fast32_t u = (byte)u_plane[vert_offset + (i / 2)];
+            int_fast32_t v = (byte)v_plane[vert_offset + (i / 2)];
 
-            int c = y - 16;
-            int d = u - 128;
-            int e = v - 128;
+            int_fast32_t c = y - 16;
+            int_fast32_t d = u - 128;
+            int_fast32_t e = v - 128;
 
-            int r = (298 * c + 409 * e + 128) >> 8;
-            int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-            int b = (298 * c + 516 * d + 128) >> 8;
+            int_fast32_t r = (298 * c + 409 * e + 128) >> 8;
+            int_fast32_t g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+            int_fast32_t b = (298 * c + 516 * d + 128) >> 8;
 
             r = r < 0 ? 0 : (r > 255 ? 255 : r);
             g = g < 0 ? 0 : (g > 255 ? 255 : g);
@@ -370,9 +370,9 @@ void YUV420ToRGB24(char* yuv, int width, int height, char* argb)
     }
 }
 
-void separate_channels_inplace(char *buffer, int num_pixels) 
+void separate_channels_inplace(char *buffer, int_fast32_t num_pixels) 
 {
-    int i;
+    int_fast32_t i;
     for (i = 0; i < num_pixels; i++) 
     {
         /* swap R and A*/
@@ -391,9 +391,9 @@ void separate_channels_inplace(char *buffer, int num_pixels)
 #include <CL/cl.h>
 
 const char *kernel_src =
-"__kernel void resize_image_bilinear_kernel(__global const uchar *src, __global uchar *dst, int src_width, int src_height, int dst_width, int dst_height, int channels, float x_ratio, float y_ratio) {"
-"    int dst_x = get_global_id(0);"
-"    int dst_y = get_global_id(1);"
+"__kernel void resize_image_bilinear_kernel(__global const uchar *src, __global uchar *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels, float x_ratio, float y_ratio) {"
+"    int_fast32_t dst_x = get_global_id(0);"
+"    int_fast32_t dst_y = get_global_id(1);"
 ""
 "    if (dst_x < dst_width && dst_y < dst_height) {"
 "        float src_x = dst_x * x_ratio;"
@@ -413,14 +413,14 @@ const char *kernel_src =
 "    }"
 "}"
 ""
-"uchar get_interpolated_value(__global const uchar *data, int x, int y, int width, int height, int channels, int channel) {"
+"uchar get_interpolated_value(__global const uchar *data, int_fast32_t x, int_fast32_t y, int_fast32_t width, int_fast32_t height, int_fast32_t channels, int_fast32_t channel) {"
 "    if (x < 0 || y < 0 || x >= width || y >= height) {"
 "        return 0;"
 "    }"
 "    return data[(y * width + x) * channels + channel];"
 "}";
 
-void CL_resize_image_bilinear(const char *src, char **dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void CL_resize_image_bilinear(const char *src, char **dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
  {
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
@@ -491,12 +491,12 @@ void CL_resize_image_bilinear(const char *src, char **dst, int src_width, int sr
 
 #ifdef HAVE_X86
 
-char bilinear_interpolate_SIMD(const char *src, float x, float y, int width, int height, int channels, int channel)
+char bilinear_interpolate_SIMD(const char *src, float x, float y, int_fast32_t width, int_fast32_t height, int_fast32_t channels, int_fast32_t channel)
 {
-    int x1 = (int)x;
-    int x2 = x1 + 1;
-    int y1 = (int)y;
-    int y2 = y1 + 1;
+    int_fast32_t x1 = (int)x;
+    int_fast32_t x2 = x1 + 1;
+    int_fast32_t y1 = (int)y;
+    int_fast32_t y2 = y1 + 1;
 
     const __m128i Q11 = _mm_set1_epi8(get_interpolated_value(src, x1, y1, width, height, channels, channel));
     const __m128i Q12 = _mm_set1_epi8(get_interpolated_value(src, x1, y2, width, height, channels, channel));
@@ -542,13 +542,13 @@ char bilinear_interpolate_SIMD(const char *src, float x, float y, int width, int
 
 #endif
 
-byte bilinear_interpolate(const byte *src, float x, float y, int width, int height, int channels, int channel)
+byte bilinear_interpolate(const byte *src, float x, float y, int_fast32_t width, int_fast32_t height, int_fast32_t channels, int_fast32_t channel)
 {
-    int x1 = (int)x;
-    int x2 = x1 + 1;
+    int_fast32_t x1 = (int)x;
+    int_fast32_t x2 = x1 + 1;
     if (x2 >= width) x2--;
-    int y1 = (int)y;
-    int y2 = y1 + 1;
+    int_fast32_t y1 = (int)y;
+    int_fast32_t y2 = y1 + 1;
     if (y2 >= height) y2--;
 
     float x_frac = x - x1;
@@ -565,12 +565,12 @@ byte bilinear_interpolate(const byte *src, float x, float y, int width, int heig
     return (byte)((1 - y_frac) * R1 + y_frac * R2);
 }
 
-void resize_image_bilinear(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_bilinear(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
 
-    int dst_y, dst_x, x, channel;
+    int_fast32_t dst_y, dst_x, x, channel;
     for (dst_y = 0; dst_y < dst_height; dst_y++)
     {
         
@@ -611,20 +611,20 @@ void resize_image_bilinear(const byte *src, byte *dst, int src_width, int src_he
     }
 } 
 
-void resize_image_bilinear_blocks(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_bilinear_blocks(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {    
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
 
-    const int BLOCK_SIZE = 8;
+    const int_fast32_t BLOCK_SIZE = 8;
 
-    int block_start_y, block_start_x, block_end_x, block_end_y, dst_y, dst_x, x, channel;
+    int_fast32_t block_start_y, block_start_x, block_end_x, block_end_y, dst_y, dst_x, x, channel;
     for (block_start_y = 0; block_start_y < src_height; block_start_y += BLOCK_SIZE) 
     {
         for (block_start_x = 0; block_start_x < src_width; block_start_x += BLOCK_SIZE) 
         {
-            int block_end_x = block_start_x + BLOCK_SIZE > src_width ? src_width : block_start_x + BLOCK_SIZE;
-            int block_end_y = block_start_y + BLOCK_SIZE > src_height ? src_height : block_start_y + BLOCK_SIZE;
+            int_fast32_t block_end_x = block_start_x + BLOCK_SIZE > src_width ? src_width : block_start_x + BLOCK_SIZE;
+            int_fast32_t block_end_y = block_start_y + BLOCK_SIZE > src_height ? src_height : block_start_y + BLOCK_SIZE;
             
             for (dst_y = block_start_y; dst_y < block_end_y; dst_y++)
             {
@@ -633,7 +633,7 @@ void resize_image_bilinear_blocks(const byte *src, byte *dst, int src_width, int
                     float src_x = dst_x * x_ratio;
                     float src_y = dst_y * y_ratio;
 
-                    int base_index = dst_y * dst_width + dst_x ;
+                    int_fast32_t base_index = dst_y * dst_width + dst_x ;
 
                     for (channel = 0; channel < channels; channel++)
                     {
@@ -652,9 +652,9 @@ void resize_image_bilinear_blocks(const byte *src, byte *dst, int src_width, int
     }
 }
 
-void bilinear_resize_plane(const byte* src, byte* dst, int src_width, int src_height, int dst_width, int dst_height, float x_ratio, float y_ratio) 
+void bilinear_resize_plane(const byte* src, byte* dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, float x_ratio, float y_ratio) 
 {
-    int dst_x, dst_y;
+    int_fast32_t dst_x, dst_y;
     for (dst_y = 0; dst_y < dst_height; dst_y++)
     {
         for (dst_x = 0; dst_x < dst_width; dst_x++)
@@ -662,10 +662,10 @@ void bilinear_resize_plane(const byte* src, byte* dst, int src_width, int src_he
             float src_x = dst_x * x_ratio;
             float src_y = dst_y * y_ratio;
             
-            int x1 = (int)src_x;
-            int y1 = (int)src_y;
-            int x2 = (x1 + 1 < src_width) ? x1 + 1 : x1;
-            int y2 = (y1 + 1 < src_height) ? y1 + 1 : y1;
+            int_fast32_t x1 = (int)src_x;
+            int_fast32_t y1 = (int)src_y;
+            int_fast32_t x2 = (x1 + 1 < src_width) ? x1 + 1 : x1;
+            int_fast32_t y2 = (y1 + 1 < src_height) ? y1 + 1 : y1;
             
             byte p1 = src[y1 * src_width + x1];
             byte p2 = src[y1 * src_width + x2];
@@ -690,13 +690,13 @@ void bilinear_resize_plane(const byte* src, byte* dst, int src_width, int src_he
 /**
  * @brief This is intended to speedup both the interpolation and converstion to ARGB process as a whole. It might shave off a few milliseconds. (which is really significant)
 */
-void resize_image_bilinear_YUV420(const byte *src, byte **dst, int src_width, int src_height, int dst_width, int dst_height)
+void resize_image_bilinear_YUV420(const byte *src, byte **dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height)
 {
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
 
-    int src_plane_size = src_width * src_height;
-    int dst_plane_size = dst_width * dst_height;
+    int_fast32_t src_plane_size = src_width * src_height;
+    int_fast32_t dst_plane_size = dst_width * dst_height;
 
     /* Perform bilinear resizing separately for each plane
        Note: bilinear_interpolate_YUV420 should also be implemented */
@@ -705,13 +705,13 @@ void resize_image_bilinear_YUV420(const byte *src, byte **dst, int src_width, in
     bilinear_resize_plane(&src[src_plane_size*5/4], &(*dst)[dst_plane_size*5/4], src_width/2, src_height/2, dst_width/2, dst_height/2, x_ratio/2, y_ratio/2);
 }
 
-void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
     /* Calculate aspect ratios */
     double src_aspect_ratio = (double)src_width / (double)src_height;
     double dst_aspect_ratio = (double)dst_width / (double)dst_height;
 
-    int target_width, target_height, x_offset = 0, y_offset = 0;
+    int_fast32_t target_width, target_height, x_offset = 0, y_offset = 0;
     /* The destination aspect ratio is wider than the source */
     if (dst_aspect_ratio > src_aspect_ratio) 
     {
@@ -735,17 +735,17 @@ void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int src_w
     /* Initialize the destination to black */
     memset(dst, 0, dst_width * dst_height * channels);
     /*
-    int i;
+    int_fast32_t i;
     for (i = 0; i < dst_width * dst_height * channels; i++) {
         dst[i] = (i % channels == 3) ? 255 : 0;
     }*/
 
-    int dst_y, dst_x, x, channel;
+    int_fast32_t dst_y, dst_x, x, channel;
     for (dst_y = 0; dst_y < target_height; dst_y++)
     {
         for (dst_x = 0; dst_x < target_width; dst_x+=8)
         {
-            int ind = (dst_y + y_offset) * dst_width + dst_x + x_offset;;
+            int_fast32_t ind = (dst_y + y_offset) * dst_width + dst_x + x_offset;;
             for (x = 0; x < 8 && (x + dst_x) < target_width; x++)
             {
                 float src_x = (x + dst_x) * x_ratio;
@@ -784,13 +784,13 @@ void resize_image_bilinear_preserve_aspect(const byte *src, byte *dst, int src_w
 /**
  * @brief This is marginally faster than resize_image_bilinear_preserve_aspect 
 */
-void resize_image_bilinear_blocks_preserve_aspect(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_bilinear_blocks_preserve_aspect(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
     /* Calculate aspect ratios */
     double src_aspect_ratio = (double)src_width / (double)src_height;
     double dst_aspect_ratio = (double)dst_width / (double)dst_height;
 
-    int target_width, target_height, x_offset = 0, y_offset = 0;
+    int_fast32_t target_width, target_height, x_offset = 0, y_offset = 0;
     
     /* The destination aspect ratio is wider than the source */
     if (dst_aspect_ratio > src_aspect_ratio) 
@@ -815,15 +815,15 @@ void resize_image_bilinear_blocks_preserve_aspect(const byte *src, byte *dst, in
     /* Initialize the destination to black */
     memset(dst, 0, dst_width * dst_height * channels);
 
-    const int BLOCK_SIZE = 8;
+    const int_fast32_t BLOCK_SIZE = 8;
 
-    int block_start_y, block_start_x, block_end_x, block_end_y, dst_y, dst_x, x, channel;
+    int_fast32_t block_start_y, block_start_x, block_end_x, block_end_y, dst_y, dst_x, x, channel;
     for (block_start_y = 0; block_start_y < target_height; block_start_y += BLOCK_SIZE) 
     {
         for (block_start_x = 0; block_start_x < target_width; block_start_x += BLOCK_SIZE) 
         {
-            int block_end_x = block_start_x + BLOCK_SIZE > target_width ? target_width : block_start_x + BLOCK_SIZE;
-            int block_end_y = block_start_y + BLOCK_SIZE > target_height ? target_height : block_start_y + BLOCK_SIZE;
+            int_fast32_t block_end_x = block_start_x + BLOCK_SIZE > target_width ? target_width : block_start_x + BLOCK_SIZE;
+            int_fast32_t block_end_y = block_start_y + BLOCK_SIZE > target_height ? target_height : block_start_y + BLOCK_SIZE;
             
             for (dst_y = block_start_y; dst_y < block_end_y; dst_y++)
             {
@@ -832,7 +832,7 @@ void resize_image_bilinear_blocks_preserve_aspect(const byte *src, byte *dst, in
                     float src_x = dst_x * x_ratio;
                     float src_y = dst_y * y_ratio;
 
-                    int base_index = (dst_y + y_offset) * dst_width + dst_x + x_offset;
+                    int_fast32_t base_index = (dst_y + y_offset) * dst_width + dst_x + x_offset;
 
                     for (channel = 0; channel < channels; channel++)
                     {
@@ -851,9 +851,9 @@ void resize_image_bilinear_blocks_preserve_aspect(const byte *src, byte *dst, in
     }
 }
 
-void apply_sharpening(byte *image, int width, int height, int channels) {
+void apply_sharpening(byte *image, int_fast32_t width, int_fast32_t height, int_fast32_t channels) {
     /* Define the sharpening kernel */
-    int kernel[3][3] = {
+    int_fast32_t kernel[3][3] = {
         { 0, -1,  0},
         {-1,  5, -1},
         { 0, -1,  0}
@@ -865,7 +865,7 @@ void apply_sharpening(byte *image, int width, int height, int channels) {
     /* Make a copy of the original image */
     memcpy(copy, image, width * height * channels);
 
-    int y,x,c;
+    int_fast32_t y,x,c;
     for (y = 1; y < height - 1; y+=1) 
     {
         for (x = 1; x < width - 1; x+=1) 
@@ -878,12 +878,12 @@ void apply_sharpening(byte *image, int width, int height, int channels) {
                     continue;
                 }
 
-                int sum = 0, ky,kx;
+                int_fast32_t sum = 0, ky,kx;
                 for (ky = -1; ky <= 1; ky+=1) 
                 {
                     for (kx = -1; kx <= 1; kx+=1) 
                     {
-                        int pixel = copy[((y + ky) * width + (x + kx)) * channels + c];
+                        int_fast32_t pixel = copy[((y + ky) * width + (x + kx)) * channels + c];
                         sum += pixel * kernel[ky + 1][kx + 1];
                     }
                 }
@@ -897,19 +897,19 @@ void apply_sharpening(byte *image, int width, int height, int channels) {
     free(copy);
 }
 
-void resize_image_nearest_neighbor(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_nearest_neighbor(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
     float x_ratio = (float)src_width / (float)dst_width;
     float y_ratio = (float)src_height / (float)dst_height;
 
-    int dst_y, dst_x;
+    int_fast32_t dst_y, dst_x;
 
     for (dst_y = 0; dst_y < dst_height; dst_y++)
     {
         for (dst_x = 0; dst_x < dst_width; dst_x++)
         {
-            int src_x = (int)(dst_x * x_ratio);
-            int src_y = (int)(dst_y * y_ratio);
+            int_fast32_t src_x = (int)(dst_x * x_ratio);
+            int_fast32_t src_y = (int)(dst_y * y_ratio);
 
             memcpy(
                 &dst[(dst_y * dst_width + dst_x) * channels],
@@ -920,13 +920,13 @@ void resize_image_nearest_neighbor(const byte *src, byte *dst, int src_width, in
     }
 }
 
-void resize_image_nearest_neighbor_preserve_aspect(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_nearest_neighbor_preserve_aspect(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
     /* Calculate aspect ratios */
     double src_aspect_ratio = (double)src_width / (double)src_height;
     double dst_aspect_ratio = (double)dst_width / (double)dst_height;
 
-    int target_width, target_height, x_offset = 0, y_offset = 0;
+    int_fast32_t target_width, target_height, x_offset = 0, y_offset = 0;
     /* The destination aspect ratio is wider than the source */
     if (dst_aspect_ratio > src_aspect_ratio) 
     {
@@ -948,14 +948,14 @@ void resize_image_nearest_neighbor_preserve_aspect(const byte *src, byte *dst, i
     float y_ratio = (float)(src_height) / (float)target_height;
 
     memset(dst, 0, dst_width * dst_height * channels);
-    int dst_y, dst_x, channel;
+    int_fast32_t dst_y, dst_x, channel;
 
     for (dst_y = 0; dst_y < target_height; dst_y++)
     {
         for (dst_x = 0; dst_x < target_width; dst_x++)
         {
-            int src_x = (int)(dst_x * x_ratio);
-            int src_y = (int)(dst_y * y_ratio);
+            int_fast32_t src_x = (int)(dst_x * x_ratio);
+            int_fast32_t src_y = (int)(dst_y * y_ratio);
 
             for (channel = 0; channel < channels; channel++)
             {
@@ -980,9 +980,9 @@ void resize_image_nearest_neighbor_preserve_aspect(const byte *src, byte *dst, i
  * @param zoom_ratio The zoom ratio
  * @param x The x coordinate of the center point after zooming
 */
-void get_zoom_coords(int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio, int* x, int *y)
+void get_zoom_coords(int src_width, int_fast32_t src_height, int_fast32_t zoom_x, int_fast32_t zoom_y, float zoom_ratio, int* x, int_fast32_t *y)
 {
-    int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
+    int_fast32_t dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
     /* Adjust centers to the minimum positions */
     if (zoom_x < dst_width/2)
     {
@@ -1016,9 +1016,9 @@ void get_zoom_coords(int src_width, int src_height, int zoom_x, int zoom_y, floa
  * @param zoom_y The y coordinate of the center point
  * @param zoom_ratio The zoom ratio
 */
-void zoom_image(const byte *src, byte** dst, int src_width, int src_height, int zoom_x, int zoom_y, float zoom_ratio)
+void zoom_image(const byte *src, byte** dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t zoom_x, int_fast32_t zoom_y, float zoom_ratio)
 {
-    int dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
+    int_fast32_t dst_width = src_width * zoom_ratio, dst_height = src_height * zoom_ratio;
     /* Adjust centers to the minimum positions */
     if (zoom_x < dst_width/2)
     {
@@ -1036,9 +1036,9 @@ void zoom_image(const byte *src, byte** dst, int src_width, int src_height, int 
     {
         zoom_y = src_height - dst_height/2;
     }
-    int x_start = zoom_x - dst_width/2, y_start = zoom_y - dst_height/2;
-    int x_end = zoom_x + dst_width/2, y_end = zoom_y + dst_height/2;
-    int i;
+    int_fast32_t x_start = zoom_x - dst_width/2, y_start = zoom_y - dst_height/2;
+    int_fast32_t x_end = zoom_x + dst_width/2, y_end = zoom_y + dst_height/2;
+    int_fast32_t i;
     printf("x_start = %d, x_end = %d, y_start = %d, y_end = %d\n", x_start, x_end, y_start, y_end);
     for (i = x_start; i < x_end; i+=1)
     {
@@ -1047,24 +1047,24 @@ void zoom_image(const byte *src, byte** dst, int src_width, int src_height, int 
     }
 }
 
-const int FIXED_POINT = 10;
+const int_fast32_t FIXED_POINT = 10;
 
-byte bilinear_interpolate_fixed_point(const byte *src, int x, int y, int width, int height, int channels, int channel)
+byte bilinear_interpolate_fixed_point(const byte *src, int_fast32_t x, int_fast32_t y, int_fast32_t width, int_fast32_t height, int_fast32_t channels, int_fast32_t channel)
 {
     /* Bitmask to essentially compute x % 2^FIXED_POINT but in a fancy way */
-    int x1 = x & (~((1<<FIXED_POINT)-1));
-    int y1 = y & (~((1<<FIXED_POINT)-1));
+    int_fast32_t x1 = x & (~((1<<FIXED_POINT)-1));
+    int_fast32_t y1 = y & (~((1<<FIXED_POINT)-1));
 
-    int _x1 = x1 >> FIXED_POINT;
-    int _y1 = y1 >> FIXED_POINT;
+    int_fast32_t _x1 = x1 >> FIXED_POINT;
+    int_fast32_t _y1 = y1 >> FIXED_POINT;
 
-    int _x2 = _x1 + 1;
+    int_fast32_t _x2 = _x1 + 1;
     if (_x2 >= width) _x2--;
-    int _y2 = _y1 + 1;
+    int_fast32_t _y2 = _y1 + 1;
     if (_y2 >= height) _y2--;
 
-    int x_frac = x - x1;
-    int y_frac = y - y1;
+    int_fast32_t x_frac = x - x1;
+    int_fast32_t y_frac = y - y1;
 
     byte Q11 = src[(_y1 * width + _x1) * channels + channel];
     byte Q12 = src[(_y2 * width + _x1) * channels + channel];
@@ -1072,28 +1072,28 @@ byte bilinear_interpolate_fixed_point(const byte *src, int x, int y, int width, 
     byte Q22 = src[(_y2 * width + _x2) * channels + channel];
 
 
-    int R1 = ((((1<<FIXED_POINT)-1) - x_frac) * Q11 + x_frac * Q21) >> FIXED_POINT;
-    int R2 = ((((1<<FIXED_POINT)-1) - x_frac) * Q12 + x_frac * Q22) >> FIXED_POINT;
+    int_fast32_t R1 = ((((1<<FIXED_POINT)-1) - x_frac) * Q11 + x_frac * Q21) >> FIXED_POINT;
+    int_fast32_t R2 = ((((1<<FIXED_POINT)-1) - x_frac) * Q12 + x_frac * Q22) >> FIXED_POINT;
 
     return (byte)(((((1<<FIXED_POINT)-1) - y_frac) * R1 + y_frac * R2) >> FIXED_POINT);
 }
 
 /* This might look goofy, but it is about 10-20% faster than using floatin point arithmetics, so that's good */
-void resize_image_bilinear_fixed_point(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_bilinear_fixed_point(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
-    int interpolate_width = src_width << FIXED_POINT, interpolate_height = src_height << FIXED_POINT;
-    int x_ratio = (src_width << FIXED_POINT) / dst_width;
-    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+    int_fast32_t interpolate_width = src_width << FIXED_POINT, interpolate_height = src_height << FIXED_POINT;
+    int_fast32_t x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int_fast32_t y_ratio = (src_height << FIXED_POINT) / dst_height;
 
-    int dst_y, dst_x, x, channel;
+    int_fast32_t dst_y, dst_x, x, channel;
     for (dst_y = 0; dst_y < dst_height; dst_y++)
     {
-        int src_y = dst_y * y_ratio;
+        int_fast32_t src_y = dst_y * y_ratio;
         for (dst_x = 0; dst_x < dst_width; dst_x+=8)
         {
             for (x = 0; x < 8; x++)
             {
-                int src_x = (x + dst_x) * x_ratio;
+                int_fast32_t src_x = (x + dst_x) * x_ratio;
 
                 for (channel = 0; channel < channels; channel++)
                 {
@@ -1127,19 +1127,19 @@ void resize_image_bilinear_fixed_point(const byte *src, byte *dst, int src_width
 
 
 /* Nothing here is faster than the code above, but it was worth trying */
-const int BLOCK_SIZE = 8;
+const int_fast32_t BLOCK_SIZE = 8;
 
-void bilinear_interpolate_block(const byte *src, int src_width, int src_height, int dst_width, int dst_height, int x_ratio, int y_ratio, int start_dst_x, int start_dst_y, int end_dst_x, int end_dst_y, byte *dst, int channels)
+void bilinear_interpolate_block(const byte *src, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t x_ratio, int_fast32_t y_ratio, int_fast32_t start_dst_x, int_fast32_t start_dst_y, int_fast32_t end_dst_x, int_fast32_t end_dst_y, byte *dst, int_fast32_t channels)
 {
-    int dst_y, dst_x, channel;
+    int_fast32_t dst_y, dst_x, channel;
 
     for (dst_y = start_dst_y; dst_y < end_dst_y; dst_y++)
     {
-        int src_y = dst_y * y_ratio;
+        int_fast32_t src_y = dst_y * y_ratio;
         
         for (dst_x = start_dst_x; dst_x < end_dst_x; dst_x++)
         {
-            int src_x = dst_x * x_ratio;
+            int_fast32_t src_x = dst_x * x_ratio;
 
             for (channel = 0; channel < channels; channel++)
             {
@@ -1154,18 +1154,18 @@ void bilinear_interpolate_block(const byte *src, int src_width, int src_height, 
     }
 }
 
-void resize_image_bilinear_fixed_point_block(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_bilinear_fixed_point_block(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
-    int x_ratio = (src_width << FIXED_POINT) / dst_width;
-    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+    int_fast32_t x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int_fast32_t y_ratio = (src_height << FIXED_POINT) / dst_height;
 
-    int block_start_y, block_start_x;
+    int_fast32_t block_start_y, block_start_x;
     for (block_start_y = 0; block_start_y < dst_height; block_start_y += BLOCK_SIZE)
     {
         for (block_start_x = 0; block_start_x < dst_width; block_start_x += BLOCK_SIZE)
         {
-            int block_end_x = (block_start_x + BLOCK_SIZE > dst_width) ? dst_width : block_start_x + BLOCK_SIZE;
-            int block_end_y = (block_start_y + BLOCK_SIZE > dst_height) ? dst_height : block_start_y + BLOCK_SIZE;
+            int_fast32_t block_end_x = (block_start_x + BLOCK_SIZE > dst_width) ? dst_width : block_start_x + BLOCK_SIZE;
+            int_fast32_t block_end_y = (block_start_y + BLOCK_SIZE > dst_height) ? dst_height : block_start_y + BLOCK_SIZE;
             
             bilinear_interpolate_block(src, src_width, src_height, dst_width, dst_height, x_ratio, y_ratio, block_start_x, block_start_y, block_end_x, block_end_y, dst, channels);
         }
@@ -1184,15 +1184,15 @@ uint32_t morton_encode(uint32_t x, uint32_t y) {
     return (expand_bits(x) << 1) + expand_bits(y);
 }
 
-void resize_image_bilinear_fixed_point_Z(const byte *src, byte *dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
+void resize_image_bilinear_fixed_point_Z(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height, int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels)
 {
-    int x_ratio = (src_width << FIXED_POINT) / dst_width;
-    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+    int_fast32_t x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int_fast32_t y_ratio = (src_height << FIXED_POINT) / dst_height;
 
-    int num_blocks_x = (dst_width + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    int num_blocks_y = (dst_height + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int_fast32_t num_blocks_x = (dst_width + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int_fast32_t num_blocks_y = (dst_height + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    int block_idx;
+    int_fast32_t block_idx;
     uint32_t i;
     /* Iterate over blocks in Morton order */
     for (block_idx = 0; block_idx < num_blocks_x * num_blocks_y; block_idx++)
@@ -1208,10 +1208,10 @@ void resize_image_bilinear_fixed_point_Z(const byte *src, byte *dst, int src_wid
         if (block_x >= num_blocks_x || block_y >= num_blocks_y)
             continue;  /* Out of bounds */
 
-        int block_start_x = block_x * BLOCK_SIZE;
-        int block_start_y = block_y * BLOCK_SIZE;
-        int block_end_x = (block_start_x + BLOCK_SIZE > dst_width) ? dst_width : block_start_x + BLOCK_SIZE;
-        int block_end_y = (block_start_y + BLOCK_SIZE > dst_height) ? dst_height : block_start_y + BLOCK_SIZE;
+        int_fast32_t block_start_x = block_x * BLOCK_SIZE;
+        int_fast32_t block_start_y = block_y * BLOCK_SIZE;
+        int_fast32_t block_end_x = (block_start_x + BLOCK_SIZE > dst_width) ? dst_width : block_start_x + BLOCK_SIZE;
+        int_fast32_t block_end_y = (block_start_y + BLOCK_SIZE > dst_height) ? dst_height : block_start_y + BLOCK_SIZE;
 
         bilinear_interpolate_block(src, src_width, src_height, dst_width, dst_height,
          x_ratio, y_ratio, block_start_x, block_start_y, block_end_x, block_end_y, dst, channels);
@@ -1232,29 +1232,29 @@ void resize_image_bilinear_fixed_point_Z(const byte *src, byte *dst, int src_wid
  * @param dst_total_offset Offset in the destination image to start writing to
  * @param compute_bytes Number of bytes to compute and write in the destination 
 */
-void resize_image_bilinear_fixed_point_offset(const byte *src, byte *dst, int src_width, int src_height,
- int dst_width, int dst_height, int channels, int dst_total_offset, int compute_bytes)
+void resize_image_bilinear_fixed_point_offset(const byte *src, byte *dst, int_fast32_t src_width, int_fast32_t src_height,
+ int_fast32_t dst_width, int_fast32_t dst_height, int_fast32_t channels, int_fast32_t dst_total_offset, int_fast32_t compute_bytes)
 {
-    int interpolate_width = src_width << FIXED_POINT, interpolate_height = src_height << FIXED_POINT;
-    int x_ratio = (src_width << FIXED_POINT) / dst_width;
-    int y_ratio = (src_height << FIXED_POINT) / dst_height;
+    int_fast32_t interpolate_width = src_width << FIXED_POINT, interpolate_height = src_height << FIXED_POINT;
+    int_fast32_t x_ratio = (src_width << FIXED_POINT) / dst_width;
+    int_fast32_t y_ratio = (src_height << FIXED_POINT) / dst_height;
 
     /* This is so much boilerplate  but might prove to be useful when doing multithreading */
-    int start_x, start_y, end_x, end_y;
+    int_fast32_t start_x, start_y, end_x, end_y;
     start_x = dst_total_offset % (dst_width * channels);
     start_y = dst_total_offset / (dst_height * channels);
     end_x = (dst_total_offset + compute_bytes) % (dst_width * channels);
     end_y = (dst_total_offset + compute_bytes) / (dst_height * channels);
 
-    int dst_y, dst_x, x, channel;
+    int_fast32_t dst_y, dst_x, x, channel;
     for (dst_y = start_y; dst_y < dst_height; dst_y++)
     {
-        int src_y = dst_y * y_ratio;
+        int_fast32_t src_y = dst_y * y_ratio;
         for (dst_x = start_x; dst_x < dst_width; dst_x+=8)
         {
             for (x = 0; x < 8; x++)
             {
-                int src_x = (x + dst_x) * x_ratio;
+                int_fast32_t src_x = (x + dst_x) * x_ratio;
 
                 for (channel = 0; channel < channels; channel++)
                 {
