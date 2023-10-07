@@ -187,7 +187,7 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
     *_height = height;
 
     /* Create a buffer to hold the image data*/
-    if ((*_size) != width * height * 4)
+    if ((*_size) < width * height * 4)
     {
         if (*_buffer != NULL)
         {
