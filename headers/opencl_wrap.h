@@ -29,13 +29,16 @@ cl_int last_err = -1;
 #define BAD_ENQUEUE 15
 #define BAD_ENQUEUE_READ 16
 #define BAD_VRAM 17
+#define BAD_IND 18
+#define BAD_POINTER 19
+#define INVALID_BUF 20
 
 #define seterr(code, clerr) do{ \
 last_error = code; \
  last_err = clerr; \
 }while(0);
 
-void get_last_error(void)
+void clW_get_last_error(void)
 {
     switch (last_error)
     {
@@ -56,7 +59,10 @@ void get_last_error(void)
         case BAD_ENQUEUE: printf("Couldn't enqueue function, opencl error code: %d\n", (int)last_err); break;
         case BAD_ENQUEUE_READ: printf("Couldn't enqueue reading VRAM, opencl error code: %d\n", (int)last_err); break;
         case BAD_VRAM: printf("Couldn't allocate VRAM, opencl error code: %d\n", (int)last_err); break;
-        default: printf("Unkown error: %d (-1 means no error), opencl error code: %d", last_error, (int)last_err); break;
+        case BAD_IND: printf("Inidice outside of array encountered when trying to update the buffer \n"); break;
+        case BAD_POINTER: printf("Tried to access null memory or default error caused by malloc returning NULL\n"); break;
+        case INVALID_BUF: printf("Encountered an error freeing a cl_mem object, opencl error code: %d\n", (int)last_err);
+        default: printf("Unkown error: %d (-1 means no error), opencl error code: %d\n", last_error, (int)last_err); break;
     }
 }
 
@@ -75,6 +81,7 @@ typedef struct OpenCLFunctionWrapper{
     void **original_data;
     uint64_t *sizes;
     uint32_t *datatypes;        /* Is the data to be copied from main memory or is it to be written to main memory */
+    int* argind;
     int nobuf;
     size_t dims[3];
     int dim;
@@ -82,6 +89,7 @@ typedef struct OpenCLFunctionWrapper{
 
 #define evalnull(ptr) if (ptr == NULL) \
 { \
+    seterr(BAD_POINTER, -1);\
     goto ABORT;\
 } 
 
@@ -250,8 +258,10 @@ void set_no_buffers(struct OpenCLFunctionWrapper* wrapper, int no_buf)
     evalnull(wrapper->original_data);
     wrapper->sizes = (uint64_t*)malloc(no_buf * sizeof(uint64_t));
     evalnull(wrapper->sizes);
-    wrapper->datatypes = (uint32_t)malloc(no_buf * sizeof(uint32_t));
+    wrapper->datatypes = (uint32_t*)malloc(no_buf * sizeof(uint32_t));
     evalnull(wrapper->datatypes);
+    wrapper->argind = (int*)malloc(no_buf * sizeof(int));
+    evalnull(wrapper->argind);
     wrapper->nobuf = no_buf;
     return;
 ABORT:
@@ -336,7 +346,7 @@ int set_kernel_arg(struct OpenCLFunctionWrapper* wrapper, int argIndex, size_t a
  * 
  * @param wrapper pointer to the OpenCLFunctionWrapper struct
  * @param bufsize the buffersize in bytes
- * @param argsize it's exactly what the name suggests should be sizeof(void*)
+ * @param argsize Size of datatype, should be sizeof(void*)
  * @param argIndex the index of the argument that will be set
  * @param mem_access_flags memory access flags (READONLY, WRITEONLY, READWRITE or the real opencl names CL_MEM_READ_ONLY, CL_MEM_WRITE_ONLY, CL_MEM_READ_WRITE)
  * @param write_flags tells whether the data is to be read from or written to main memory (FROM_MEMORY, TO_MEMORY or TO_AND_FROM_MEMORY) MUST BE SET
@@ -359,12 +369,6 @@ int create_and_set_buf(struct OpenCLFunctionWrapper* wrapper, void* data_source,
         seterr(BAD_VRAM, err);
         goto ABORT;
     }
-    err = clSetKernelArg(wrapper->kernel, argIndex, argSize, (void *)&tmp);
-    if (err != CL_SUCCESS)
-    {
-        seterr(BAD_KERNEL_ARG, err);
-        goto ABORT;
-    }
     int i = 0, ok = -1;
     for (i = 0; i < wrapper->nobuf; i +=1)
     {
@@ -375,19 +379,32 @@ int create_and_set_buf(struct OpenCLFunctionWrapper* wrapper, void* data_source,
             wrapper->original_data[i] = data_source;
             wrapper->sizes[i] = bufsize;
             wrapper->datatypes[i] = write_flags;
+            wrapper->argind[i] = argIndex;
             break;
         }
     }
     /* There is no more room for this buffer */
     if (ok == -1)
     {
+        /* No point in checking status*/
+        clReleaseMemObject(tmp);
         seterr(NO_PLACE_FOR_BUFF, -1);
+        goto ABORT;
+    }
+    /* It finally makes sense to set it as an argument*/
+    err = clSetKernelArg(wrapper->kernel, argIndex, argSize, (void *)&tmp);
+    if (err != CL_SUCCESS)
+    {
+        /* No point in checking status*/
+        clReleaseMemObject(tmp);
+        seterr(BAD_KERNEL_ARG, err);
         goto ABORT;
     }
     return ok;
 ABORT:
     return -1;
 }
+
 
 /**
  * @brief Sets the global size of work items (var1 * max(1, var2) * max(1, var3) in general) needs to be called before call_function, or you will get an error for sure
@@ -508,6 +525,123 @@ int change_datatype_field(struct OpenCLFunctionWrapper* wrapper, void* ptr, uint
             return 0;
         }
     }
+ABORT:
+    return -1;
+}
+
+/** @brief Updates the pointer to main memory of the VRAM buffer, assuming the VRAM buffer's size is unchanged
+ * 
+ * @param wrapper Pointer to the OpenCLFunctionWrapper struct
+ * @param new_ptr new pointer
+ * @param new_size the new size of the pointer has to be the same or less than the old one (the VRAM buffer is unchanged)
+ * @param ind the position in the buffer array
+ * 
+ * @return 0 on succes -1 on failure
+*/
+int update_buffer_pointer(struct OpenCLFunctionWrapper* wrapper, void* new_ptr, uint64_t new_size, int ind)
+{
+    if (wrapper == NULL)
+    {
+        seterr(NULL_PTR_ERROR, -1);
+        goto ABORT;
+    }
+    if (ind >= wrapper->nobuf)
+    {
+        seterr(BAD_IND, -1);
+        goto ABORT;
+    }
+    evalnull(wrapper->buffers[ind])
+    wrapper->sizes[ind] = new_size;
+    wrapper->original_data[ind] = new_ptr;
+    return 0;
+ABORT:
+    return -1;
+}
+
+/** @brief Releases the cl_mem object found at position ind, without updating the kernel arguments
+ * 
+ * @param wrapper Pointer to the OpenCLFunctionWrapper struct
+ * @param ind the position in the buffers' array
+ * 
+ * @return 0 on succes, -1 on failure, use clW_get_last_error for more info 
+*/
+int release_buf(struct OpenCLFunctionWrapper* wrapper, int ind)
+{
+    if (wrapper == NULL)
+    {
+        seterr(NULL_PTR_ERROR, -1);
+        goto ABORT;
+    }
+    if (ind >= wrapper->nobuf)
+    {
+        seterr(BAD_IND, -1);
+        goto ABORT;
+    }
+    cl_int err = clReleaseMemObject(wrapper->buffers[ind]);
+    if (err != CL_SUCCESS)
+    {
+        seterr(INVALID_BUF, -1);
+        goto ABORT;
+    }
+    wrapper->datatypes[ind] = 0;
+    wrapper->original_data[ind] = NULL;
+    wrapper->sizes[ind] = 0;
+    return 0;
+ABORT:
+    return -1;
+}
+
+/**
+ * @brief updates an existing buffer and sets it as an argument for the function
+ * 
+ * @param wrapper pointer to the OpenCLFunctionWrapper struct
+ * @param new_ptr the new pointer in the main memory
+ * @param new_size new size of the memory at new_ptr
+ * @param ind position in buffers array
+ * @param mem_access_flags memory access flags (READONLY, WRITEONLY, READWRITE or the real opencl names CL_MEM_READ_ONLY, CL_MEM_WRITE_ONLY, CL_MEM_READ_WRITE)
+ * @param write_flags tells whether the data is to be read from or written to main memory (FROM_MEMORY, TO_MEMORY or TO_AND_FROM_MEMORY) MUST BE SET
+ * 
+ * @return 0 on succes -1 on failure
+*/
+int change_vram_buf(struct OpenCLFunctionWrapper* wrapper, void* new_ptr, uint64_t new_size, int ind, int mem_access_flags, int write_flags)
+{
+    if (wrapper == NULL)
+    {
+        seterr(NULL_PTR_ERROR, -1);
+        goto ABORT;
+    }
+    if (ind >= wrapper->nobuf)
+    {
+        seterr(BAD_IND, -1);
+        goto ABORT;
+    }
+    int ret = release_buf(wrapper, ind);
+    if (ret == -1)
+    {
+        /* The error is already set */
+        goto ABORT;
+    }
+    cl_int err;
+    cl_mem tmp = clCreateBuffer(wrapper->context, mem_access_flags, new_size, NULL, &err);
+    /* Unlikely to happen but possible */
+    if (tmp == NULL)
+    {
+        seterr(BAD_VRAM, err);
+        goto ABORT;
+    }
+    wrapper->buffers[ind] = tmp;
+    wrapper->original_data[ind] = new_ptr;
+    wrapper->sizes[ind] = new_size;
+    wrapper->datatypes[ind] = write_flags;
+    err = clSetKernelArg(wrapper->kernel, wrapper->argind[ind], sizeof(void*), (void *)&tmp);
+    if (err != CL_SUCCESS)
+    {
+        /* No point in checking status*/
+        clReleaseMemObject(tmp);
+        seterr(BAD_KERNEL_ARG, err);
+        goto ABORT;
+    }
+    return 0;
 ABORT:
     return -1;
 }
