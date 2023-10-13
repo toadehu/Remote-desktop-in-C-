@@ -653,34 +653,54 @@ ABORT:
 */
 int get_number_of_gpus(void)
 {
-    int num_gpus = 0;
-    cl_platform_id platform;
-    cl_device_id device;
+    cl_platform_id *platforms;
+    cl_uint num_platforms;
+    cl_uint total_gpus = 0;
     cl_int err;
 
-    err = clGetPlatformIDs(1, &platform, NULL);
+    // Get number of platforms
+    err = clGetPlatformIDs(0, NULL, &num_platforms);
     if (err != CL_SUCCESS) {
-        /* Handle error: Unable to get platform */
+        /* Handle error: Unable to get number of platforms */
         seterr(BAD_PLATFORMID, err);
         goto ABORT;
     }
 
-    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, device, NULL);
-    if (err != CL_SUCCESS) {
-        /* Handle error: Unable to get device */
-        seterr(BAD_DEVICEID, err);
+    // Allocate memory for platforms
+    platforms = (cl_platform_id *)malloc(num_platforms * sizeof(cl_platform_id));
+    if(platforms == NULL) {
+        /* Handle error: Unable to allocate memory for platforms */
+        seterr(BAD_MALLOC, err);
         goto ABORT;
     }
 
-    /* Count the number of GPUs */
-    while (err == CL_SUCCESS) 
-    {
-        num_gpus++;
-        err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+    // Get platforms
+    err = clGetPlatformIDs(num_platforms, platforms, NULL);
+    if (err != CL_SUCCESS) {
+        /* Handle error: Unable to get platforms */
+        seterr(BAD_PLATFORMID, err);
+        goto FREE_MEM_ABORT;
     }
 
-    return num_gpus;
+    // Loop over platforms and count GPU devices
+    for (cl_uint i = 0; i < num_platforms; i++) {
+        cl_uint num_gpus = 0;
 
+        err = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, 0, NULL, &num_gpus);
+        if (err != CL_SUCCESS && err != CL_DEVICE_NOT_FOUND) {
+            /* Handle error: Unable to get number of GPU devices */
+            seterr(BAD_DEVICEID, err);
+            goto FREE_MEM_ABORT;
+        }
+
+        total_gpus += num_gpus;
+    }
+
+    free(platforms);
+    return total_gpus;
+
+FREE_MEM_ABORT:
+    free(platforms);
 ABORT:
     return -1;
 }
