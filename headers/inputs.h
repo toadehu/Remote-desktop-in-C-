@@ -756,6 +756,8 @@ void register_regular_keys(inputs* inp)
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_9);
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_LEFTCTRL);
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_RIGHTCTRL);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_LEFTSHIFT);
+    ioctl(inp->fd_keybd, UI_SET_KEYBIT, KEY_RIGHTSHIFT);
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_LCTRL);
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_RCTRL);
     ioctl(inp->fd_keybd, UI_SET_KEYBIT, SDLK_LALT);
@@ -1216,7 +1218,7 @@ void send_key_release(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     }
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = key;
-    inp->ev_key.value = 1;
+    inp->ev_key.value = 0; //silly billi it was 1 before and NOTHING worked
     usleep(1000);
     write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
