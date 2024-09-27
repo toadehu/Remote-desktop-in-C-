@@ -8,7 +8,7 @@ else
 endif
 
 # Compiler flags
-CFLAGS := -ggdb3 -std=c89 -Wall -I../../headers
+CFLAGS := -ggdb3 -Wall -I../../headers
 
 # Platform-specific settings
 ifeq ($(version),RASPI)
@@ -39,7 +39,7 @@ endif
 ifeq ($(shell test -n "$${DISPLAY+x}" && echo yes),yes)
     CFLAGS+=-DHAVE_X11
 	CFLAGS+=-lX11 -lXext
-	LDLIBS+=-lX11 -lXext
+	LDLIBS+=-lX11 -lXext -lXinerama 
 else ifeq ($(shell test -n "$${WAYLAND_DISPLAY+x}" && echo yes),yes)
     CFLAGS+=-DHAVE_WAYLAND
 else
@@ -47,10 +47,10 @@ else
 endif
 
 # Linker flags
-LDFLAGS += -lm -lSDL2_ttf -lX11 -msse2 -mavx2 -march=native
+LDFLAGS += -lm -lSDL2_ttf -lX11 -lXinerama -msse2 -mavx2 -march=native
 
 # Source and object files
-SRCS := ./main.c
+SRCS := opencl_wrap.c main.c
 OBJS := $(SRCS:.c=.o)
 
 # Executable name

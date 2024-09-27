@@ -8,7 +8,7 @@ else
 endif
 
 # Set the compiler flags
-CFLAGS := -ggdb3 -std=c89 -Wall -I../../headers
+CFLAGS := -ggdb3 -Wall -I../../headers -D CL_TARGET_OPENCL_VERSION=300
 
 # SDL configuration for Raspberry Pi
 ifeq ($(version),RASPI)
@@ -37,8 +37,8 @@ endif
 # X11 or Wayland display server detection
 ifeq ($(shell test -n "$${DISPLAY+x}" && echo yes),yes)
     # Running on X
-    CFLAGS += -DHAVE_X11 -lX11
-    LDLIBS += -lX11
+    CFLAGS += -DHAVE_X11
+    LDLIBS += -lX11 -lXinerama
 else ifeq ($(shell test -n "$${WAYLAND_DISPLAY+x}" && echo yes),yes)
     # Running on Wayland
     CFLAGS += -DHAVE_WAYLAND
@@ -47,10 +47,10 @@ else
 endif
 
 # Set the linker flags
-LDFLAGS += -lm -lSDL2_ttf -lX11 -msse2 -mavx2 -march=native
+LDFLAGS += -lm -lSDL2_ttf -lX11 -lXinerama -lOpenCL -msse2 -mavx2 -march=native
 
 # Source and object files
-SRCS := main.c
+SRCS := ../dummy_test.c ../opencl_wrap.c main.c
 OBJS := $(SRCS:.c=.o)
 
 # Name of executable

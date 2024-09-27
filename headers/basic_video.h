@@ -53,6 +53,13 @@ basic_video_enc* basic_create_video_enc(int width, int height, int bitrate, int 
     {
         basic -> image_size = (width * height * 3) / 2;
     }
+    else
+	basic -> image_size = width * height * 3;
+    if (basic -> image_size <= 0)
+    {
+	free(basic);
+	return NULL;
+    }
     basic -> prev_image = (char*)malloc(basic -> image_size);
     if (basic->prev_image == NULL)
     {
@@ -327,6 +334,8 @@ basic_video_dec* basic_create_video_dec(int width, int height, int bitrate, int 
     {
         basic -> image_size = (width * height * 3) / 2;
     }
+    else
+	basic -> image_size = width * height * 3;
     printf("Image size: %d\n", basic -> image_size);
     basic -> first_pass = (char*)malloc(basic -> image_size);
     if (basic -> first_pass == NULL)
@@ -361,19 +370,19 @@ void rle_first_decode(char* data, int size, basic_video_dec* video, char* orig)
     video -> pass2_size = 0;
     for (i = 0; i < size; i+=1)
     {
-        memset(video->first_pass_size + video->pass2_size, data[i], (u_char)data[i + size]);
+        memset(video->first_pass_size + video->pass2_size, data[i], (unsigned char)data[i + size]);
         video -> pass2_size += (unsigned char)data[i + size];
     }
 }
 
 void rle_second_decode(char* data, basic_video_dec* video)
 {
-    int i, j;
+    int i;
     video -> pass1_size = 0;
     for (i = 0; i < video -> pass2_size; i+=1)
     {
-        memset(video ->first_pass + video -> pass1_size, data[i], (u_char)video -> first_pass_size[i]);
-        video -> pass1_size += (u_char)video -> first_pass_size[i];
+        memset(video ->first_pass + video -> pass1_size, data[i], (unsigned char)video -> first_pass_size[i + video -> pass2_size]);
+        video -> pass1_size += (char)video -> first_pass_size[i];
     }
 }
 

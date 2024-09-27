@@ -138,6 +138,11 @@ bool is_point_inside_rect(int x, int y, int rectX, int rectY, int rectW, int rec
 void init_decoder(uint16_t w, uint16_t h)
 {
 	basic_dec = basic_create_video_dec(w, h, 0, VIDEO_YUV420, RLE_TWO_PASS);
+	if (basic_dec == NULL)
+	{
+		printf("ERROR\n");
+		exit(0);
+	}
 	screen_bits = (char*)__aligned_malloc(w * h * 4, 1024);
 	yuv_buffer = (char*)__aligned_malloc(w * h * 3 / 2, 1024);
 	int res_w = 1920, res_h = 1080;
@@ -204,20 +209,14 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 
 		rec = TCP_Socket_receive_data_fixed(sock, buffer, encoded_image_size);
 
-		if (rec != encoded_image_size)
-		{
-			printf("Expected %d bytes, received %d bytes\n", encoded_image_size, rec);
-			printf("Something catastrophic happened, the connection is probably compromised or the server has shut down... exiting\n");
-			exit(1);
-		}
-
+		VALIDATE(rec == encoded_image_size)
 
 		basic_decode_next_frame(basic_dec, buffer, encoded_image_size, second_pass_size, encoding_flags);
 
 		/* Because I always update the buffer incase it is too small, I shouldn't run into issues with the buffer being too small */
 		basic_copy_frame_d(basic_dec, yuv_buffer, screen_width * screen_height * 3 / 2, 0, encoding_flags);
 			
-			clock_t st = clock();
+		clock_t st = clock();
 		/*convert the image to RGB32*/
 		YUV420ToARGB(yuv_buffer, screen_width, screen_height, screen_bits);
 
@@ -239,35 +238,19 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 				resized_screen_bits = (char*)__aligned_realloc(resized_screen_bits, resized_size, renderer->images[0][0]->rect.w * renderer->images[0][0]->rect.h * 4, 1024);
 				resized_size = renderer->images[0][0]->rect.w * renderer->images[0][0]->rect.h * 4;
 			}
-
-
-			if (state_m->zoom > 0)
+			
+			else
 			{
-				int i, new_width = screen_width, new_height = screen_height;
-				for (i = 0; i < state_m->zoom; i+=1)
-				{
-					printf("ABout to blow up:(\n");
-					zoom_image((const byte)screen_bits, &zoom_screen_bits, screen_width, screen_height,
-					 state_m->zooms_x[i], state_m->zooms_y[i], zoom_ratio);
-					printf("Never reached\n");
-					memcpy(screen_bits, zoom_screen_bits,
-					 ((float)screen_width * zoom_ratio) * ((float)screen_height * zoom_ratio) * 4);
-					new_width = (int)((float)new_width * zoom_ratio);
-					new_height = (int)((float)new_height * zoom_ratio);
-				}
-				resize_image_bilinear((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, new_width, new_height,
+				resize_image_bilinear((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, screen_width, screen_height,
 				renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);
 			}
-			else
-			{resize_image_bilinear((const unsigned char*)screen_bits, (unsigned char*)resized_screen_bits, screen_width, screen_height,
-				renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);}
 			clock_t en = clock();
-			printf("Second resize: %d\n", en - st);
+			printf("Second resize: %ld\n", en - st);
 
 			/* If the image is smaller than 1/3 of the source image we apply the sharpening kernel */
 			if (renderer->images[0][0]->rect.w * renderer->images[0][0]->rect.h * 3 < screen_width * screen_height)
 			{
-				apply_sharpening(resized_screen_bits, renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);
+				apply_sharpening((byte*)resized_screen_bits, renderer->images[0][0]->rect.w, renderer->images[0][0]->rect.h, 4);
 			}
 		}
 		else
@@ -278,9 +261,6 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 
 int main(int argc, char* argv[])
 {
-
-	inputs* inp = create_inputs_struct(FULL_LAYOUT);
-
 	state_m = (state_machine*)malloc(sizeof(state_machine));
 
 	memset(state_m, 0, sizeof(state_machine));
@@ -415,7 +395,7 @@ int main(int argc, char* argv[])
 	keypresses = (char*)malloc(1000);
 	keypresses_size = 0;
 
-	int mouseX, mouseY, relativeX, relativeY, windowW, windowH;
+	int mouseX, mouseY;
 	SDL_KeyboardEvent key;
 	SDL_Keycode keycode;
 	Uint16 modifiers;
@@ -457,14 +437,14 @@ int main(int argc, char* argv[])
 				}
 				break;
 			case SDL_KEYDOWN:
-				if (event.key.keysym.sym == SDLK_Z && (event.key.keysym.mod & KMOD_CTRL != 0) && (event.key.keysym.mod & KMOD_ALT != 0))
+				if ( ((event.key.keysym.sym == SDLK_Z) && ((event.key.keysym.mod & (KMOD_CTRL)) != 0) && ((event.key.keysym.mod & (KMOD_ALT)) != 0)))
 				{
 					/* Mouse has left the window no zooming to be done */
 					if (state_m->mouse_in == 0)
 					{
 						break;
 					}
-					printf("Zooming\n\n\n\n\n\n\n\n\n\n\n\n\n");
+					
 					if (state_m->zoom < 3)
 					{
 						SDL_GetMouseState(&mouseX, &mouseY);
@@ -477,7 +457,8 @@ int main(int argc, char* argv[])
 					}
 					break;
 				}
-				else if (event.key.keysym.sym == SDLK_Q && event.key.keysym.mod & KMOD_CTRL && event.key.keysym.mod & KMOD_ALT)
+
+				else if (event.key.keysym.sym == SDLK_Q && event.key.keysym.mod & (KMOD_CTRL) && event.key.keysym.mod & (KMOD_ALT))
 				{
 					/* Mouse has left the window no zooming to be done */
 					if (state_m->mouse_in == 0)
@@ -511,9 +492,7 @@ int main(int argc, char* argv[])
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				SDL_GetMouseState(&mouseX, &mouseY);
-
-				relativeX = mouseX;
-				relativeY = mouseY;
+				
 				if (event.button.button == SDL_BUTTON_LEFT)
 				{
 					if (event.button.clicks > 1)
@@ -648,7 +627,7 @@ int main(int argc, char* argv[])
 		SDL_RenderPresent(renderer->renderer);
 		clock_t end = clock();
 
-		printf("Time: %d, Clocks per second: %d\n", (end - start), CLOCKS_PER_SEC);
+		printf("Time: %ld, Clocks per second: %ld\n", (end - start), CLOCKS_PER_SEC);
 	}
 	return 0;
 }

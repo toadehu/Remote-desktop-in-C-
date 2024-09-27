@@ -21,6 +21,10 @@ typedef uint64_t __uint64_t;
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+/*#include <syn/select.h>*/
 #define SOCKET int
 #define closesocket close
 #define SOCKET_ERROR -1

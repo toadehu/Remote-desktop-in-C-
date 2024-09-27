@@ -1,7 +1,14 @@
 #pragma once
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+#define _BSD_SOURCE
+#define _USLEEP
+
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
+
 
 /* Alphabet keys */
 #define SDLK_TO_UINPUT_A      KEY_A
@@ -1066,7 +1073,7 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
                 inp->ev_mod.type = EV_KEY;
                 inp->ev_mod.code = MOD_KEYS[i];
                 inp->ev_mod.value = 1;
-                write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
+                (void)write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
                 send_syn(inp);
                 usleep(100);
             }
@@ -1076,7 +1083,7 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     inp->ev_key.code = key;
     inp->ev_key.value = 1;
     usleep(1000);
-    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     if (mods != 0)
     {
@@ -1087,14 +1094,14 @@ void send_key(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
                 inp->ev_mod.type = EV_KEY;
                 inp->ev_mod.code = MOD_KEYS[i];
                 inp->ev_mod.value = 0;
-                write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
+                (void)write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
                 send_syn(inp);
                 usleep(100);
             }
         }
     }
     inp->ev_key.value = 0;
-    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
 
     send_syn(inp);
 #endif
@@ -1150,7 +1157,7 @@ void send_key_press(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
             inp->ev_mod.type = EV_KEY;
             inp->ev_mod.code = MOD_KEYS[i];
             inp->ev_mod.value = 1;
-            write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
+            (void)write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
             send_syn(inp);
         }
     }
@@ -1158,7 +1165,7 @@ void send_key_press(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
     inp->ev_key.code = key;
     inp->ev_key.value = 1;
     usleep(1000);
-    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
 #endif
 }
@@ -1212,21 +1219,21 @@ void send_key_release(inputs* inp, uint32_t key, uint32_t mods, uint32_t flags)
             inp->ev_mod.type = EV_KEY;
             inp->ev_mod.code = MOD_KEYS[i];
             inp->ev_mod.value = 1;
-            write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
+            (void)write(inp->fd_keybd, &inp->ev_mod, sizeof(inp->ev_mod));
             send_syn(inp);
         }
     }
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = key;
-    inp->ev_key.value = 0; //silly billi it was 1 before and NOTHING worked
+    inp->ev_key.value = 0; /*silly billi it was 1 before and NOTHING worked*/
     usleep(1000);
-    write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_keybd, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
 #endif
 }
 
 /**
- * @brief Writes the cursor position to the x and y variables
+ * @brief (void)writes the cursor position to the x and y variables
  *
  * @return 0 on failure, nonzero otherwise
 */
@@ -1269,10 +1276,8 @@ void set_mouse_pos(inputs* inp, int x, int y)
     SendInput(1, &_inp, sizeof(INPUT));
     usleep(500);
 #else
-    Display *display = XOpenDisplay(NULL);
-    Window root_window = XRootWindow(display, XDefaultScreen(display));
 
-    XWarpPointer(inp -> display, NULL, inp -> root_window, 0, 0, 0, 0, x, y);
+    XWarpPointer(inp -> display, (Window)NULL, inp -> root_window, 0, 0, 0, 0, x, y);
     XFlush(inp -> display);
     usleep(500);
 #endif
@@ -1295,10 +1300,10 @@ void send_Lclick(inputs* inp)
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = BTN_LEFT;
     inp->ev_key.value = 1;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     usleep(200);
     inp->ev_key.value = 0;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     usleep(200);
     return;
 #endif
@@ -1319,7 +1324,7 @@ void send_Lhold(inputs* inp)
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = BTN_LEFT;
     inp->ev_key.value = 1;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     usleep(200);
     return;
 #endif
@@ -1340,7 +1345,7 @@ void send_Lrelease(inputs* inp)
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = BTN_LEFT;
     inp->ev_key.value = 0;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     usleep(200);
     return;
 #endif
@@ -1366,11 +1371,11 @@ void send_Rclick(inputs* inp)
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = BTN_RIGHT;
     inp->ev_key.value = 1;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     inp->ev_key.value = 0;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     return;
@@ -1396,11 +1401,11 @@ void send_Mclick(inputs* inp)
     inp->ev_key.type = EV_KEY;
     inp->ev_key.code = BTN_MIDDLE;
     inp->ev_key.value = 1;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     inp->ev_key.value = 0;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     return;
@@ -1423,11 +1428,11 @@ void send_mouse_scroll(inputs* inp, int amount)
     inp->ev_key.type = EV_REL;
     inp->ev_key.code = REL_WHEEL;
     inp->ev_key.value = amount;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     inp->ev_key.value = 0;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     return;
@@ -1451,11 +1456,11 @@ void send_mouse_scroll_horizontal(inputs* inp, int amount)
     inp->ev_key.type = EV_REL;
     inp->ev_key.code = REL_WHEEL;
     inp->ev_key.value = amount;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     inp->ev_key.value = 0;
-    write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
+    (void)write(inp->fd_mouse, &inp->ev_key, sizeof(inp->ev_key));
     send_syn(inp);
     usleep(100);
     return;

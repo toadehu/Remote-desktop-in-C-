@@ -9,11 +9,9 @@
 
 #include <windows.h>
 #include <wingdi.h>
-/*
 #include <dxgi1_2.h>
 #include <d3d11.h>
 #include <wincodec.h>
-*/
 #include "memoryapi.h"
 
 #elif __linux__
@@ -27,8 +25,6 @@
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <X11/extensions/Xinerama.h>
-
 
 #elif HAVE_WAYLAND
 #include <wayland-client.h>
@@ -39,10 +35,8 @@
 
 void* __aligned_malloc(unsigned long size, unsigned long alignment)
 {
-    if (alignment < 0)
-        alignment = 128;
-    if (alignment > 1024 * 128) /* what is bro doing */
-        alignment = 1024 * 128; 
+    if (alignment < 1024)
+        alignment = 1024;
     #ifdef _WIN32
     return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     #elif __unix__
@@ -77,6 +71,18 @@ void* __aligned_realloc(void* old_ptr, unsigned long old_size, unsigned long new
 
     return new_ptr;
 }
+
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+Uint32 rmask = 0xff000000;
+Uint32 gmask = 0x00ff0000;
+Uint32 bmask = 0x0000ff00;
+Uint32 amask = 0x000000ff;
+#else
+Uint32 rmask = 0x000000ff;
+Uint32 gmask = 0x0000ff00;
+Uint32 bmask = 0x00ff0000;
+Uint32 amask = 0xff000000;
+#endif
 
 #ifdef HAVE_WAYLAND
 #if __has_include(<wayland-client.h>)
@@ -153,7 +159,6 @@ static const struct wl_output_listener output_listener = {
 #endif
 
 #ifdef _WIN32
-/*
 typedef struct ScreenCaptureDX 
 {
     ID3D11Device* d3d_device;
@@ -161,7 +166,6 @@ typedef struct ScreenCaptureDX
     IDXGIOutputDuplication* duplication;
     ID3D11Texture2D* screen_texture;
 } ScreenCaptureDX;
-*/
 #endif
 
 typedef struct SCREEN_CAPTURE
@@ -190,8 +194,9 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
             free(*_buffer);
         }
         (* _size) = width * height * 4;
-        *_buffer = (char *)__aligned_malloc(*_size, 256);
+        *_buffer = (char *)__aligned_malloc(*_size, 1024);
     }
+
     *_size = width * height * 4;
 
     /* Get the screen device context*/
@@ -308,7 +313,7 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
         {
             free(*_buffer);
         }
-        *_buffer = (unsigned char *)__aligned_malloc(Width * Height * (image -> bits_per_pixel >> 3), 256);
+        *_buffer = (char *)__aligned_malloc(Width * Height * (image -> bits_per_pixel >> 3), 16);
     }
 
     (*_size) = Width * Height * (image -> bits_per_pixel >> 3);
@@ -373,7 +378,7 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
         {
             free(*_buffer);
         }
-       *_buffer = (unsigned char *)__aligned_malloc(size, 16);
+       *_buffer = (char *)__aligned_malloc(size, 16);
     }
     /*printf("Top 10 printf before segfault\n");*/
     memcpy(*_buffer, data, size);
@@ -398,96 +403,6 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
     wl_shm_destroy(wl_data.shm);
     wl_registry_destroy(registry);
     wl_display_disconnect(display);
-#endif
-#endif
-}
-
-
-void capture_one_display (int monitor_index, unsigned char** _buffer, int* _size, int* _width, int* _height)
-{
-#ifdef __linux__
-
-#ifdef HAVE_X11
-    Display* display = XOpenDisplay(NULL);
-    if (!display) {
-        printf("Unable to open X display\n");
-        exit(EXIT_FAILURE);
-    }
-
-    int screen = DefaultScreen(display);
-
-    if (!XineramaIsActive(display)) {
-        printf("Xinerama is not active\n");
-        XCloseDisplay(display);
-        exit(EXIT_FAILURE);
-    }
-
-    // Get the number of monitors and their information
-    int num_screens;
-    XineramaScreenInfo* screens = XineramaQueryScreens(display, &num_screens);
-    if (!screens) {
-        printf("Unable to query Xinerama screens\n");
-        XCloseDisplay(display);
-        exit(EXIT_FAILURE);
-    }
-
-    if (monitor_index >= num_screens || monitor_index < 0) {
-        printf("Invalid monitor index. There are %d monitors.\n", num_screens);
-        XFree(screens);
-        XCloseDisplay(display);
-        exit(EXIT_FAILURE);
-    }
-
-    // Get the monitor's attributes (width, height, and its position in the overall screen layout)
-    XineramaScreenInfo monitor = screens[monitor_index];
-    int monitor_width = monitor.width;
-    int monitor_height = monitor.height;
-    int x_offset = monitor.x_org;
-    int y_offset = monitor.y_org;
-
-    // Set _width and _height to the dimensions of the captured monitor screen
-    *_width = monitor_width;
-    *_height = monitor_height;
-
-    // Capture the screen area specific to the monitor using the offsets and dimensions
-    XImage* image = XGetImage(display, RootWindow(display, screen), x_offset, y_offset, monitor_width, monitor_height, AllPlanes, ZPixmap);
-    if (!image) {
-        printf("Unable to get image data from the selected monitor\n");
-        XFree(screens);
-        XCloseDisplay(display);
-        exit(EXIT_FAILURE);
-    }
-
-    // Allocate memory if the buffer size changes
-    int image_size = monitor_width * monitor_height * (image->bits_per_pixel >> 3);
-    if ((*_size) != image_size) {
-        if (*_buffer != NULL) {
-            free(*_buffer);
-        }
-        *_buffer = (unsigned char*)__aligned_malloc(image_size, 16);
-    }
-
-    (*_size) = image_size;
-
-    #ifdef _DEBUG
-    printf("Captured monitor screen size: %d, bit depth: %d\n", (*_size), image->bits_per_pixel);
-    #endif
-
-    // Copy the image data into the buffer
-    memcpy(*_buffer, image->data, *_size);
-
-    #ifdef _DEBUG
-    printf("Screen data copied successfully\n");
-    #endif
-
-    // Clean up resources
-    XDestroyImage(image);
-    XFree(screens);
-    XCloseDisplay(display);
-
-    #ifdef _DEBUG
-    printf("Finished capturing screenshot from monitor %d\n", monitor_index);
-    #endif
 #endif
 #endif
 }

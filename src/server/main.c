@@ -12,7 +12,7 @@
 
 int port;
 
-void update_versace_size(SDL_Rect* rect, SDL_Rect win_rect)
+void update_versace_size(SDL_Rect* rect, SDL_Rect win_rect, void *extra)
 {
 	rect -> w = win_rect.w * 0.35;
 	rect -> h = win_rect.h * 0.35;
@@ -20,10 +20,15 @@ void update_versace_size(SDL_Rect* rect, SDL_Rect win_rect)
 	rect -> y = (win_rect.h >> 1) + (win_rect.h >> 3);
 }
 
-void versace_button_on_click()
+void versace_button_on_click(){/*To be completed*/}
+
+struct screen_data
 {
-	/*To be completed*/
-}
+	int screen_width, screen_height, image_dim, type, quality, no_blocks;
+	int buf_size[5];
+	unsigned char *screen_bits, *converted_bits, *dst, *jpeg_arr, *offsets;
+	struct OpenCLFunctionWrapper *openclwrap;
+};
 
 void process_inputs(TCP_SOCKET* sock, inputs* inp)
 {
@@ -33,7 +38,6 @@ void process_inputs(TCP_SOCKET* sock, inputs* inp)
 	int i;
 	uint32_t key, mods;
 	int32_t x,y,relx,rely;
-	uint32_t realX, realY;
 	char click_type;
 	for (i = 0; i < rez;)
 	{
@@ -179,6 +183,44 @@ int main (int argc, char *argv[])
 		}
 	}
 
+
+	struct screen_data video_enc;
+
+	video_enc.screen_bits = NULL;
+	video_enc.converted_bits = NULL;
+	memset(video_enc.buf_size, 0, 5 * sizeof(int));
+	/* Dry run to get the parameners at startup*/
+	capture_one_display(0, &video_enc.screen_bits, &video_enc.buf_size[0], &video_enc.screen_width, &video_enc.screen_height);
+
+	video_enc.image_dim = video_enc.screen_width * video_enc.screen_width;
+
+	/* Yes I want 1024 byte aligned memory. I will not take chances with OpenCL crying about it with error code -130184012047 */
+	video_enc.converted_bits = __aligned_malloc(video_enc.image_dim * 4, 4096);
+	video_enc.dst = __aligned_malloc(video_enc.image_dim * 6, 4096);
+	video_enc.jpeg_arr = __aligned_malloc(video_enc.image_dim * 8, 4096);
+	video_enc.offsets = __aligned_malloc(video_enc.image_dim, 4096);
+
+	video_enc.type = YUV420;
+	if (video_enc.type == YUV420)
+	{
+		video_enc.no_blocks = (((video_enc.screen_width+7)/8) * ((video_enc.screen_height+7)/8)) * 1.5;
+	}
+	video_enc.quality = 90;
+
+	video_enc.openclwrap = createOpenCLWrapperStruct("../jpegKernel.cl", KERNEL_FROM_FILE, 
+							"do_jpeg", NULL, 0, 0, ENABLE_PROFILING);
+
+	set_no_buffers(video_enc.openclwrap, 5);
+    create_and_set_buf(video_enc.openclwrap, video_enc.converted_bits, video_enc.image_dim * 1.5, sizeof(void*), 0, READONLY, FROM_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.dst, video_enc.image_dim * 3, sizeof(void*), 1, WRITEONLY, TO_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.jpeg_arr, video_enc.image_dim * 4, sizeof(void*), 2, READWRITE, TO_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.offsets, video_enc.image_dim / 8, sizeof(void*), 3, READWRITE, TO_MEMORY);
+    set_kernel_arg(video_enc.openclwrap, 4, sizeof(int), video_enc.screen_width);
+    set_kernel_arg(video_enc.openclwrap, 5, sizeof(int), video_enc.screen_height);
+    set_kernel_arg(video_enc.openclwrap, 6, sizeof(int), video_enc.type); /* 1 is YUV420, 4 is used as ARGB8 in the source code 3 is RGB8 */
+    set_kernel_arg(video_enc.openclwrap, 7, sizeof(int), video_enc.quality); /* This is the quality */
+    set_dimension_and_values(video_enc.openclwrap, 3, (video_enc.screen_width+7)/8, (video_enc.screen_height+7)/8, 3);
+
 	inputs* inp;
 	inp = create_inputs_struct(FULL_LAYOUT | MOUSE);
 
@@ -198,27 +240,25 @@ int main (int argc, char *argv[])
 
 	renderer_update_rects(renderer);
 
-	char* screen_bits = NULL;
-	char* yuv_buffer = NULL;
 	char* sending_buffer = NULL;
 
 	int buffer_size = 0, screen_width, screen_height, sending_buffer_size = 0;
+
+	size_t st, en;
 
 	/*Is the main loop active?*/
 	bool loop = 1;
 
 	/*create the video encoder*/
-	basic_video_enc* basic_enc = NULL;
 
-	struct TCP_Socket* sock = TCP_SOCKET_create(port, 0, true, 1, 0);
+	struct TCP_Socket* sock = NULL; //TCP_SOCKET_create(port, 0, true, 1, 0);
 
-	allow_select(sock);
+	//allow_select(sock);
 
-RECONNECT_CLIENT:
 	if (sock == NULL)
 	{
 		printf("Failed to create socket\n");
-		exit(1);
+		//exit(1);
 	}
 
 	while (loop)
@@ -254,7 +294,8 @@ RECONNECT_CLIENT:
 			}
 		}
 
-		int rez = find_hot_socket_with_timeout(sock, 100);
+		int rez = 69;//find_hot_socket_with_timeout(sock, 100);
+
 		/* check if there is data coming from the client */
 		if (rez == 0)
 		{
@@ -272,71 +313,57 @@ RECONNECT_CLIENT:
 		/* update the screen*/
 		SDL_RenderPresent(renderer -> renderer);
 
-		capture_screen(&screen_bits, &buffer_size, &screen_width, &screen_height);
+		st = clock();		
 
-		if (yuv_buffer == NULL)
-		{
-			yuv_buffer = (char *)__aligned_malloc(((screen_width * screen_height * 3) / 2), 4096);
-			sending_buffer = (char *)__aligned_malloc(((screen_width * screen_height * 3) / 2) + 20, 4096); /* This will be large enough for anything */
-			sending_buffer_size = ((screen_width * screen_height * 3) / 2) + 20;
-			basic_enc = basic_create_video_enc(screen_width, screen_height, 0, VIDEO_YUV420, RLE_TWO_PASS);
+		capture_one_display(0, &video_enc.screen_bits, &video_enc.buf_size[0], &video_enc.screen_width, &video_enc.screen_height);
 
-			if (basic_enc == NULL)
-			{
-				printf("Failed to create encoder\n");
-				exit(1);
-			}
-		}
+
 
 #ifdef _DEBUG
 		printf("Screen size: %d, %d\n", screen_width, screen_height);
 #endif
 
-		ARGBToYUV420(&screen_bits, screen_width, screen_height, &yuv_buffer);
+		ARGBToYUV420(&video_enc.screen_bits, video_enc.screen_width, video_enc.screen_height, &video_enc.converted_bits);
+
+		int64_t ret = call_function(video_enc.openclwrap, 0 | HIGH_PERF_CLOCK);
+
+		/* Assembling the RLE encoded array. Will move this to the GPU soon enough. 
+		Reusing screen_bits since we don't care about the previous values, they have been used already */
+		int cptr = 0;
+		for (int i = 0; i < video_enc.no_blocks; ++i)
+		{
+			for (int j = 0; j < ((short*)video_enc.offsets)[i+1]; ++j)
+			{
+				((short*)video_enc.screen_bits)[cptr++] = ((short*)video_enc.jpeg_arr)[i * 128 + j];
+			}
+		}
+		memcpy(video_enc.jpeg_arr, video_enc.offsets, 2 * video_enc.no_blocks + 2);
+		((int*)video_enc.offsets)[0] = 0;
+		for (int i = 0; i < video_enc.no_blocks; ++i)
+		{
+			((int*)video_enc.offsets)[i+1] = ((int*)video_enc.offsets)[i] + ((short*)video_enc.jpeg_arr)[i+1];
+		}
 
 #ifdef _DEBUG
 		printf("YUV conversion done \n");
 #endif
 
-		if (basic_enc == NULL)
+		if (sending_buffer_size < 20 + 2 * ((int*)video_enc.offsets)[video_enc.no_blocks])
 		{
-			printf("Failed to create encoder\n");
-			exit(1);
+			sending_buffer = (char*)realloc(sending_buffer, 4096 * 8 + 2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
+			sending_buffer_size = 4096 * 8 + 2 * ((int*)video_enc.offsets)[video_enc.no_blocks];
 		}
 
-		int encoding_flags, sz = 0;
-
-#ifdef _DEBUG
-		clock_t start = clock();
-
-		sz = basic_encode_next_frame(basic_enc, yuv_buffer, &encoding_flags);
-
-		clock_t end = clock();
-
-		printf("Time for encode %d, size of image: %d\n", (end - start) * 1000 / CLOCKS_PER_SEC, sz);
-
-#else
-		sz = basic_encode_next_frame(basic_enc, yuv_buffer, &encoding_flags);
-#endif
-		if (sending_buffer_size < sz + 20)
-		{
-			free(sending_buffer);
-			sending_buffer = (char *)__aligned_malloc(sz + 20000, 4096);
-			sending_buffer_size = sz + 20000;
-		}
-		int encode_rez = basic_copy_frame(basic_enc, sending_buffer, sending_buffer_size, 20, encoding_flags);
-		if (encode_rez)
-		{
-			sending_buffer = (char *)__aligned_realloc(sending_buffer, sending_buffer_size, sz + 512 * 1024, 1024);
-		}
 		sending_buffer[0] = new_frame;
-		*((int*)((char*)sending_buffer + 4)) = htonl(encoding_flags);
-		*((int*)((char*)sending_buffer + 8)) = htonl(sz);
-		*((int*)((char*)sending_buffer + 12)) = htonl(basic_enc -> pass2_size);
-		*(uint16_t*)((char*)sending_buffer + 16) = htons(screen_width);
-		*(uint16_t*)((char*)sending_buffer + 18) = htons(screen_height);
+		sending_buffer[1] = jpeg_no_huff;
+		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.screen_width);
+		*((int*)((char*)sending_buffer + 8)) = htonl(video_enc.screen_height);
+		*((int*)((char*)sending_buffer + 12)) = htonl(2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
+		*(uint16_t*)((char*)sending_buffer + 16) = htons(video_enc.screen_width);
+		*(uint16_t*)((char*)sending_buffer + 18) = htons(video_enc.screen_height);
+		memcpy(sending_buffer + 20, video_enc.screen_bits, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
 
-		int sent = TCP_Socket_send_data(sock, 0, sending_buffer, sz + 20);
+		int sent = TCP_Socket_send_data(sock, 0, sending_buffer, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + 20);
 		if (sent == -1)
 		{
 			/* The client disconnected :(*/
@@ -344,17 +371,19 @@ RECONNECT_CLIENT:
 			TCP_Socket_accept_new_connection(sock, 0);
 			/* printf("Accepted new connection\n"); */
 		}
-		else if (sent != sz + 20)
+		else if (sent != 2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + 20)
 		{
-			int sent2 = TCP_Socket_send_data(sock, 0, sending_buffer, sz + 20 - sent);
+			int sent2 = TCP_Socket_send_data(sock, 0, sending_buffer, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + 20 - sent);
 			if (sent2 < 0)
 			{
 				printf("The client disconnected\n");
 				TCP_Socket_accept_new_connection(sock, 0);
 			}
-			sent2 == sz + 20 - sent ? printf("Data sent\n") : printf("The connection is compromised, expected to send%d, actually sent: %d\n", sz + 20, sent2); exit(1);
 		}
 
+		en = clock();
+
+		printf("Pipeline %ld and kernel time: %ld\n", en-st, ret);
 		/* calculate to 24fps*/
 		SDL_Delay(1);
 	}

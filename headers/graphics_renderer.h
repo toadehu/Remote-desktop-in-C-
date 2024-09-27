@@ -43,7 +43,7 @@ typedef struct _GRAPHICS_RENDERER
 
 }GRAPHICS_RENDERER;
 
-void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect)
+void update_background_rectangle(SDL_Rect* backg_rect, SDL_Rect window_rect, void *null)
 {
     if (backg_rect->w != window_rect.w || backg_rect->h != window_rect.h)
     {
