@@ -33,6 +33,19 @@ int ipver, port;
 int keypresses_size;
 char* keypresses;
 
+/**
+ * Replica of the same struct from the server source code
+ * 
+ * TODO: Move all of this to a nice little header
+ */
+struct screen_data
+{
+	int screen_width, screen_height;
+	int image_width, image_height, image_dim, type, quality, no_blocks;
+	int buf_size[5];
+	unsigned char *screen_bits, *converted_bits, *dst, *jpeg_arr, *offsets;
+	struct OpenCLFunctionWrapper *openclwrap;
+};
 void real_rect(int srcW, int srcH, int destW, int destH, int *goodW, int *goodH);
 
 /* This could be a funny macro though */
@@ -264,6 +277,45 @@ int main(int argc, char* argv[])
 	state_m = (state_machine*)malloc(sizeof(state_machine));
 
 	memset(state_m, 0, sizeof(state_machine));
+
+	struct screen_data video_enc;
+
+	video_enc.screen_bits = NULL;
+	video_enc.converted_bits = NULL;
+	memset(video_enc.buf_size, 0, 5 * sizeof(int));
+	/* Setting up default parametes. */
+	video_enc.screen_height = 1080;
+	video_enc.screen_width = 1920;
+	video_enc.image_dim = video_enc.screen_width * video_enc.screen_width;
+
+	/* Yes I want page aligned memory. I will not take chances with OpenCL crying about it with error code -130184012047 */
+	video_enc.converted_bits = __aligned_malloc(video_enc.image_dim * 4, 4096);
+	video_enc.dst = __aligned_malloc(video_enc.image_dim * 6, 4096);
+	video_enc.jpeg_arr = __aligned_malloc(video_enc.image_dim * 8, 4096);
+	video_enc.offsets = __aligned_malloc(video_enc.image_dim, 4096);
+
+	/* More default parameters */
+	video_enc.type = YUV420;
+	if (video_enc.type == YUV420)
+	{
+		video_enc.no_blocks = (((video_enc.screen_width+7)/8) * ((video_enc.screen_height+7)/8)) * 1.5;
+	}
+	video_enc.quality = 90;
+
+	video_enc.openclwrap = createOpenCLWrapperStruct("../jpegKernel.cl", KERNEL_FROM_FILE, 
+							"do_jpeg", NULL, 0, 0, ENABLE_PROFILING);
+
+	set_no_buffers(video_enc.openclwrap, 5);
+    create_and_set_buf(video_enc.openclwrap, video_enc.converted_bits, video_enc.image_dim * 1.5, sizeof(void*), 0, READONLY, FROM_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.dst, video_enc.image_dim * 3, sizeof(void*), 1, WRITEONLY, TO_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.jpeg_arr, video_enc.image_dim * 4, sizeof(void*), 2, READWRITE, TO_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.offsets, video_enc.image_dim / 8, sizeof(void*), 3, READWRITE, TO_MEMORY);
+    set_kernel_arg(video_enc.openclwrap, 4, sizeof(int), video_enc.screen_width);
+    set_kernel_arg(video_enc.openclwrap, 5, sizeof(int), video_enc.screen_height);
+    set_kernel_arg(video_enc.openclwrap, 6, sizeof(int), video_enc.type); /* 1 is YUV420, 4 is used as ARGB8 in the source code 3 is RGB8 */
+    set_kernel_arg(video_enc.openclwrap, 7, sizeof(int), video_enc.quality); /* This is the quality */
+    set_dimension_and_values(video_enc.openclwrap, 3, (video_enc.screen_width+7)/8, (video_enc.screen_height+7)/8, 3);
+
 
 	serverIp = (char*)malloc(20);
 	user = (char*)malloc(128);

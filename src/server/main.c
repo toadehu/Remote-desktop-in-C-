@@ -24,12 +24,16 @@ void versace_button_on_click(){/*To be completed*/}
 
 struct screen_data
 {
-	int screen_width, screen_height, image_dim, type, quality, no_blocks;
+	int screen_width, screen_height;
+	int image_width, image_height, image_dim, type, quality, no_blocks;
 	int buf_size[5];
 	unsigned char *screen_bits, *converted_bits, *dst, *jpeg_arr, *offsets;
 	struct OpenCLFunctionWrapper *openclwrap;
 };
 
+/**
+ * TODO: Move all of this to a nice little header
+ */
 void process_inputs(TCP_SOCKET* sock, inputs* inp)
 {
 	/* More than 1 input/ms is impossible big polling ratez are 1000hz*/
@@ -192,9 +196,11 @@ int main (int argc, char *argv[])
 	/* Dry run to get the parameners at startup*/
 	capture_one_display(0, &video_enc.screen_bits, &video_enc.buf_size[0], &video_enc.screen_width, &video_enc.screen_height);
 
-	video_enc.image_dim = video_enc.screen_width * video_enc.screen_width;
+	video_enc.image_height = 1080;
+	video_enc.image_width = 1920;
+	video_enc.image_dim = video_enc.image_width * video_enc.image_width;
 
-	/* Yes I want 1024 byte aligned memory. I will not take chances with OpenCL crying about it with error code -130184012047 */
+	/* Yes I want page aligned memory. I will not take chances with OpenCL crying about it with error code -130184012047 */
 	video_enc.converted_bits = __aligned_malloc(video_enc.image_dim * 4, 4096);
 	video_enc.dst = __aligned_malloc(video_enc.image_dim * 6, 4096);
 	video_enc.jpeg_arr = __aligned_malloc(video_enc.image_dim * 8, 4096);
@@ -356,8 +362,8 @@ int main (int argc, char *argv[])
 
 		sending_buffer[0] = new_frame;
 		sending_buffer[1] = jpeg_no_huff;
-		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.screen_width);
-		*((int*)((char*)sending_buffer + 8)) = htonl(video_enc.screen_height);
+		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.image_width);
+		*((int*)((char*)sending_buffer + 8)) = htonl(video_enc.image_height);
 		*((int*)((char*)sending_buffer + 12)) = htonl(2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
 		*(uint16_t*)((char*)sending_buffer + 16) = htons(video_enc.screen_width);
 		*(uint16_t*)((char*)sending_buffer + 18) = htons(video_enc.screen_height);
