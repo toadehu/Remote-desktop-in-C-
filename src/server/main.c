@@ -221,11 +221,11 @@ int main (int argc, char *argv[])
     create_and_set_buf(video_enc.openclwrap, video_enc.dst, video_enc.image_dim * 3, sizeof(void*), 1, WRITEONLY, TO_MEMORY);
     create_and_set_buf(video_enc.openclwrap, video_enc.jpeg_arr, video_enc.image_dim * 4, sizeof(void*), 2, READWRITE, TO_MEMORY);
     create_and_set_buf(video_enc.openclwrap, video_enc.offsets, video_enc.image_dim / 8, sizeof(void*), 3, READWRITE, TO_MEMORY);
-    set_kernel_arg(video_enc.openclwrap, 4, sizeof(int), video_enc.screen_width);
-    set_kernel_arg(video_enc.openclwrap, 5, sizeof(int), video_enc.screen_height);
+    set_kernel_arg(video_enc.openclwrap, 4, sizeof(int), video_enc.image_width);
+    set_kernel_arg(video_enc.openclwrap, 5, sizeof(int), video_enc.image_height);
     set_kernel_arg(video_enc.openclwrap, 6, sizeof(int), video_enc.type); /* 1 is YUV420, 4 is used as ARGB8 in the source code 3 is RGB8 */
     set_kernel_arg(video_enc.openclwrap, 7, sizeof(int), video_enc.quality); /* This is the quality */
-    set_dimension_and_values(video_enc.openclwrap, 3, (video_enc.screen_width+7)/8, (video_enc.screen_height+7)/8, 3);
+    set_dimension_and_values(video_enc.openclwrap, 3, (video_enc.image_width+7)/8, (video_enc.image_height+7)/8, 3);
 
 	inputs* inp;
 	inp = create_inputs_struct(FULL_LAYOUT | MOUSE);
@@ -328,8 +328,11 @@ int main (int argc, char *argv[])
 #ifdef _DEBUG
 		printf("Screen size: %d, %d\n", screen_width, screen_height);
 #endif
+		/* TODO: fix this shit and move all this stuff to a nice kernel because wtf is this */
+		resize_image_bilinear(video_enc.screen_bits, video_enc.dst, 
+		video_enc.screen_width, video_enc.screen_height, video_enc.image_width, video_enc.image_height, 4);
 
-		ARGBToYUV420(&video_enc.screen_bits, video_enc.screen_width, video_enc.screen_height, &video_enc.converted_bits);
+		ARGBToYUV420(&video_enc.dst, video_enc.screen_width, video_enc.screen_height, &video_enc.converted_bits);
 
 		int64_t ret = call_function(video_enc.openclwrap, 0 | HIGH_PERF_CLOCK);
 
@@ -362,11 +365,11 @@ int main (int argc, char *argv[])
 
 		sending_buffer[0] = new_frame;
 		sending_buffer[1] = jpeg_no_huff;
-		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.image_width);
-		*((int*)((char*)sending_buffer + 8)) = htonl(video_enc.image_height);
+		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.sceen_width);
+		*((int*)((char*)sending_buffer + 8)) = htonl(video_enc.screen_height);
 		*((int*)((char*)sending_buffer + 12)) = htonl(2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
-		*(uint16_t*)((char*)sending_buffer + 16) = htons(video_enc.screen_width);
-		*(uint16_t*)((char*)sending_buffer + 18) = htons(video_enc.screen_height);
+		*(uint16_t*)((char*)sending_buffer + 16) = htons(video_enc.image_width);
+		*(uint16_t*)((char*)sending_buffer + 18) = htons(video_enc.image_height);
 		memcpy(sending_buffer + 20, video_enc.screen_bits, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
 
 		int sent = TCP_Socket_send_data(sock, 0, sending_buffer, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + 20);

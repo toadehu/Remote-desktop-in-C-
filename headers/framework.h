@@ -44,6 +44,8 @@ enum encoded_type
     rle = 0x0F /* Ideally this is never used from now on but who knows*/
 };
 
+#define JPEG_ENCODED jpeg_no_huff | jpeg_reg
+
 
 #define CLICK_LEFT 1
 #define CLICK_RIGHT 2

@@ -46,6 +46,7 @@ struct screen_data
 	unsigned char *screen_bits, *converted_bits, *dst, *jpeg_arr, *offsets;
 	struct OpenCLFunctionWrapper *openclwrap;
 };
+
 void real_rect(int srcW, int srcH, int destW, int destH, int *goodW, int *goodH);
 
 /* This could be a funny macro though */
@@ -182,14 +183,21 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 	}
 	if (buffer[0] == new_frame)
 	{
-
+		char encoding_type = buffer[1];
 		/* Get the flags and information from the header */
 		int encoding_flags = ntohl(*(int*)((char*)buffer + 4));
 		int encoded_image_size = ntohl(*(int*)((char*)buffer + 8));
-		printf("encoded_image_size: %d\n", encoded_image_size);
 		int second_pass_size = ntohl(*(int*)((char*)buffer + 12));
 		uint16_t w = ntohs(*(uint16_t*)((char*)buffer + 16));
-		uint16_t h = ntohs(*(uint16_t*)((char*)buffer + 18));
+		uint16_t h = ntohs(*(uint16_t*)((char*)buffer + 18));		
+
+		/* TODO fix this piece of shit code */
+		if (encoding_type & JPEG_ENCODED)
+		{
+			/* Shitty placeholder I know will fix */
+			encoded_image_size = second_pass_size;
+			goto SKIP_NONJPEG;
+		}
 
 		/* Create the initial decoder and other buffers */
 		if (basic_dec == NULL)
@@ -201,34 +209,46 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 			resized_screen_bits = (char*)__aligned_malloc(res_w * res_h * 4, 1024);
 			resized_size = res_w * res_h * 4;
 		}
-
-		if (screen_width != (int)w)
-		{
-			if (screen_width < (int)w || screen_height < (int)h)
-			{
-				screen_bits = (char*)__aligned_realloc(screen_bits, screen_width * screen_height * 4, (int)w * (int)h * 4, 1024);
-				yuv_buffer = (char*)__aligned_realloc(yuv_buffer, screen_width * screen_height * 3 / 2, (int)w * (int)h * 3 / 2, 1024);
-				zoom_screen_bits = (char*)__aligned_realloc(zoom_screen_bits, screen_width * screen_height * 4, (int)w * (int)h * 4, 1024);
-			}
-			screen_width = (int)w;
-			screen_height = (int)h;
-		}
-
 		if (encoded_image_size > buffer_size)
 		{
 			buffer = (char*)__aligned_realloc(buffer, buffer_size, buffer_size * 2 > encoded_image_size ? buffer_size * 2 : encoded_image_size + buffer_size, 4096);
-			buffer_size = buffer_size * 2 > encoded_image_size ? buffer_size * 2 : encoded_image_size + buffer_size;/*This is to limit the number of calls to realloc, becuase it will waste at most ~4MB of ram, which is acceptable*/
+			/*This is to limit the number of calls to realloc, becuase it will waste at most ~4MB of ram, which is *normally* acceptable*/
+			buffer_size = buffer_size * 2 > encoded_image_size ? buffer_size * 2 : encoded_image_size + buffer_size;
+		}
+		
+		SKIP_NONJPEG:
+
+		if (screen_width < (int)w || screen_height < (int)h)
+		{
+			screen_bits = (char*)__aligned_realloc(screen_bits, screen_width * screen_height * 4, (int)w * (int)h * 4, 1024);
+			yuv_buffer = (char*)__aligned_realloc(yuv_buffer, screen_width * screen_height * 3 / 2, (int)w * (int)h * 3 / 2, 1024);
+			zoom_screen_bits = (char*)__aligned_realloc(zoom_screen_bits, screen_width * screen_height * 4, (int)w * (int)h * 4, 1024);
+		}
+
+
+		if (screen_width != (int)w)
+		{
+			screen_width = (int)w;
+			screen_height = (int)h;
 		}
 
 		rec = TCP_Socket_receive_data_fixed(sock, buffer, encoded_image_size);
 
 		VALIDATE(rec == encoded_image_size)
 
-		basic_decode_next_frame(basic_dec, buffer, encoded_image_size, second_pass_size, encoding_flags);
+		if ((encoding_type & JPEG_ENCODED) == 0)
+		{
+			basic_decode_next_frame(basic_dec, buffer, encoded_image_size, second_pass_size, encoding_flags);
 
-		/* Because I always update the buffer incase it is too small, I shouldn't run into issues with the buffer being too small */
-		basic_copy_frame_d(basic_dec, yuv_buffer, screen_width * screen_height * 3 / 2, 0, encoding_flags);
+			/* Because I always update the buffer incase it is too small, I shouldn't run into issues with the buffer being too small */
+			basic_copy_frame_d(basic_dec, yuv_buffer, screen_width * screen_height * 3 / 2, 0, encoding_flags);	
+		}
+
+		else
+		{
 			
+		}
+
 		clock_t st = clock();
 		/*convert the image to RGB32*/
 		YUV420ToARGB(yuv_buffer, screen_width, screen_height, screen_bits);
@@ -284,9 +304,9 @@ int main(int argc, char* argv[])
 	video_enc.converted_bits = NULL;
 	memset(video_enc.buf_size, 0, 5 * sizeof(int));
 	/* Setting up default parametes. */
-	video_enc.screen_height = 1080;
-	video_enc.screen_width = 1920;
-	video_enc.image_dim = video_enc.screen_width * video_enc.screen_width;
+	video_enc.image_height = 1080;
+	video_enc.image_width = 1920;
+	video_enc.image_dim = video_enc.image_width * video_enc.image_width;
 
 	/* Yes I want page aligned memory. I will not take chances with OpenCL crying about it with error code -130184012047 */
 	video_enc.converted_bits = __aligned_malloc(video_enc.image_dim * 4, 4096);
@@ -310,11 +330,11 @@ int main(int argc, char* argv[])
     create_and_set_buf(video_enc.openclwrap, video_enc.dst, video_enc.image_dim * 3, sizeof(void*), 1, WRITEONLY, TO_MEMORY);
     create_and_set_buf(video_enc.openclwrap, video_enc.jpeg_arr, video_enc.image_dim * 4, sizeof(void*), 2, READWRITE, TO_MEMORY);
     create_and_set_buf(video_enc.openclwrap, video_enc.offsets, video_enc.image_dim / 8, sizeof(void*), 3, READWRITE, TO_MEMORY);
-    set_kernel_arg(video_enc.openclwrap, 4, sizeof(int), video_enc.screen_width);
-    set_kernel_arg(video_enc.openclwrap, 5, sizeof(int), video_enc.screen_height);
+    set_kernel_arg(video_enc.openclwrap, 4, sizeof(int), video_enc.image_width);
+    set_kernel_arg(video_enc.openclwrap, 5, sizeof(int), video_enc.image_height);
     set_kernel_arg(video_enc.openclwrap, 6, sizeof(int), video_enc.type); /* 1 is YUV420, 4 is used as ARGB8 in the source code 3 is RGB8 */
     set_kernel_arg(video_enc.openclwrap, 7, sizeof(int), video_enc.quality); /* This is the quality */
-    set_dimension_and_values(video_enc.openclwrap, 3, (video_enc.screen_width+7)/8, (video_enc.screen_height+7)/8, 3);
+    set_dimension_and_values(video_enc.openclwrap, 3, (video_enc.image_width+7)/8, (video_enc.image_height+7)/8, 3);
 
 
 	serverIp = (char*)malloc(20);

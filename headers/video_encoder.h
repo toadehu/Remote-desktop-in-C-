@@ -575,6 +575,11 @@ void resize_image_bilinear(const byte *src, byte *dst, int src_width, int src_he
     float x_ratio = (float)(src_width) / (float)dst_width;
     float y_ratio = (float)(src_height) / (float)dst_height;
 
+    if (src_height == dst_height && src_width == dst_width)
+    {
+        return;
+    }
+
     int dst_y, dst_x, x, channel;
     for (dst_y = 0; dst_y < dst_height; dst_y++)
     {
