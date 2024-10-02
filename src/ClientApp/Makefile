@@ -47,10 +47,10 @@ else
 endif
 
 # Linker flags
-LDFLAGS += -lm -lSDL2_ttf -lX11 -lXinerama -msse2 -mavx2 -march=native
+LDFLAGS += -lm -lSDL2_ttf -lX11 -lXinerama -lOpenCL -msse2 -mavx2 -march=native
 
 # Source and object files
-SRCS := opencl_wrap.c main.c
+SRCS := ../dummy_test.c ../opencl_wrap.c main.c
 OBJS := $(SRCS:.c=.o)
 
 # Executable name

@@ -248,7 +248,7 @@ int main (int argc, char *argv[])
 
 	char* sending_buffer = NULL;
 
-	int buffer_size = 0, screen_width, screen_height, sending_buffer_size = 0;
+	int sending_buffer_size = 0;
 
 	size_t st, en;
 
@@ -365,7 +365,7 @@ int main (int argc, char *argv[])
 
 		sending_buffer[0] = new_frame;
 		sending_buffer[1] = jpeg_no_huff;
-		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.sceen_width);
+		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.screen_width);
 		*((int*)((char*)sending_buffer + 8)) = htonl(video_enc.screen_height);
 		*((int*)((char*)sending_buffer + 12)) = htonl(2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
 		*(uint16_t*)((char*)sending_buffer + 16) = htons(video_enc.image_width);
