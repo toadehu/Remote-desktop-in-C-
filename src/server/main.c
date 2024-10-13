@@ -395,7 +395,7 @@ int main (int argc, char *argv[])
 
 		printf("Pipeline %ld and kernel time: %ld\n", en-st, ret);
 		/* calculate to 24fps*/
-		SDL_Delay(200);
+		SDL_Delay(20);
 	}
 
 	return 0;
