@@ -194,7 +194,8 @@ int main (int argc, char *argv[])
 	video_enc.converted_bits = NULL;
 	memset(video_enc.buf_size, 0, 5 * sizeof(int));
 	/* Dry run to get the parameners at startup*/
-	capture_one_display(0, &video_enc.screen_bits, &video_enc.buf_size[0], &video_enc.screen_width, &video_enc.screen_height);
+	capture_one_display(0, &video_enc.screen_bits, &video_enc.buf_size[0], 
+	&video_enc.screen_width, &video_enc.screen_height);
 
 	video_enc.image_height = 1080;
 	video_enc.image_width = 1920;
@@ -209,17 +210,17 @@ int main (int argc, char *argv[])
 	video_enc.type = YUV420;
 	if (video_enc.type == YUV420)
 	{
-		video_enc.no_blocks = (((video_enc.screen_width+7)/8) * ((video_enc.screen_height+7)/8)) * 1.5;
+		video_enc.no_blocks = (((video_enc.image_width+7)/8) * ((video_enc.image_height+7)/8)) * 1.5;
 	}
-	video_enc.quality = 90;
+	video_enc.quality = 75;
 
 	video_enc.openclwrap = createOpenCLWrapperStruct("../jpegKernel.cl", KERNEL_FROM_FILE, 
 							"do_jpeg", NULL, 0, 0, ENABLE_PROFILING);
 
 	set_no_buffers(video_enc.openclwrap, 5);
-    create_and_set_buf(video_enc.openclwrap, video_enc.converted_bits, video_enc.image_dim * 1.5, sizeof(void*), 0, READONLY, FROM_MEMORY);
-    create_and_set_buf(video_enc.openclwrap, video_enc.dst, video_enc.image_dim * 3, sizeof(void*), 1, WRITEONLY, TO_MEMORY);
-    create_and_set_buf(video_enc.openclwrap, video_enc.jpeg_arr, video_enc.image_dim * 4, sizeof(void*), 2, READWRITE, TO_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.converted_bits, video_enc.image_dim * 2, sizeof(void*), 0, READONLY, FROM_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.dst, video_enc.image_dim * 1, sizeof(void*), 1, WRITEONLY, TO_MEMORY);
+    create_and_set_buf(video_enc.openclwrap, video_enc.jpeg_arr, video_enc.image_dim * 6, sizeof(void*), 2, READWRITE, TO_MEMORY);
     create_and_set_buf(video_enc.openclwrap, video_enc.offsets, video_enc.image_dim / 8, sizeof(void*), 3, READWRITE, TO_MEMORY);
     set_kernel_arg(video_enc.openclwrap, 4, sizeof(int), video_enc.image_width);
     set_kernel_arg(video_enc.openclwrap, 5, sizeof(int), video_enc.image_height);
@@ -246,9 +247,9 @@ int main (int argc, char *argv[])
 
 	renderer_update_rects(renderer);
 
-	char* sending_buffer = NULL;
+	char* sending_buffer = __aligned_malloc(1024 * 1024 * 20, 1024);
 
-	int sending_buffer_size = 0;
+	int sending_buffer_size = 1024 * 1024 * 20;
 
 	size_t st, en;
 
@@ -257,9 +258,9 @@ int main (int argc, char *argv[])
 
 	/*create the video encoder*/
 
-	struct TCP_Socket* sock = NULL; //TCP_SOCKET_create(port, 0, true, 1, 0);
+	struct TCP_Socket* sock = TCP_SOCKET_create(port, 0, true, 1, 0);
 
-	//allow_select(sock);
+	allow_select(sock);
 
 	if (sock == NULL)
 	{
@@ -317,26 +318,21 @@ int main (int argc, char *argv[])
 		/*SDL_RenderCopy(renderer -> renderer, renderer -> images[0][0] -> texture, NULL, &renderer -> images[0][0] -> rect);*/
 
 		/* update the screen*/
-		SDL_RenderPresent(renderer -> renderer);
-
-		st = clock();		
+		SDL_RenderPresent(renderer -> renderer);	
 
 		capture_one_display(0, &video_enc.screen_bits, &video_enc.buf_size[0], &video_enc.screen_width, &video_enc.screen_height);
 
+		st = clock();	
 
-
-#ifdef _DEBUG
-		printf("Screen size: %d, %d\n", screen_width, screen_height);
-#endif
 		/* TODO: fix this shit and move all this stuff to a nice kernel because wtf is this */
 		resize_image_bilinear(video_enc.screen_bits, video_enc.dst, 
 		video_enc.screen_width, video_enc.screen_height, video_enc.image_width, video_enc.image_height, 4);
 
-		ARGBToYUV420(&video_enc.dst, video_enc.screen_width, video_enc.screen_height, &video_enc.converted_bits);
+		ARGBToYUV420(&video_enc.dst, video_enc.image_width, video_enc.image_height, &video_enc.converted_bits);
 
 		int64_t ret = call_function(video_enc.openclwrap, 0 | HIGH_PERF_CLOCK);
 
-		/* Assembling the RLE encoded array. Will move this to the GPU soon enough. 
+		/* Assembling the RLE encoded array. TODO: move this to the GPU soon enough. 
 		Reusing screen_bits since we don't care about the previous values, they have been used already */
 		int cptr = 0;
 		for (int i = 0; i < video_enc.no_blocks; ++i)
@@ -353,36 +349,41 @@ int main (int argc, char *argv[])
 			((int*)video_enc.offsets)[i+1] = ((int*)video_enc.offsets)[i] + ((short*)video_enc.jpeg_arr)[i+1];
 		}
 
-#ifdef _DEBUG
-		printf("YUV conversion done \n");
-#endif
-
 		if (sending_buffer_size < 20 + 2 * ((int*)video_enc.offsets)[video_enc.no_blocks])
 		{
-			sending_buffer = (char*)realloc(sending_buffer, 4096 * 8 + 2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
+			sending_buffer = (char*)realloc(sending_buffer, 4096 * 8 + 
+			2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + sizeof(int) * video_enc.no_blocks);
 			sending_buffer_size = 4096 * 8 + 2 * ((int*)video_enc.offsets)[video_enc.no_blocks];
 		}
 
 		sending_buffer[0] = new_frame;
 		sending_buffer[1] = jpeg_no_huff;
-		*((int*)((char*)sending_buffer + 4)) = htonl(video_enc.screen_width);
-		*((int*)((char*)sending_buffer + 8)) = htonl(video_enc.screen_height);
-		*((int*)((char*)sending_buffer + 12)) = htonl(2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
+		int frame_size = 0;
+		/* Add the size of the raw data */
+		frame_size += 2 * ((int*)video_enc.offsets)[video_enc.no_blocks];
+		frame_size += video_enc.no_blocks * sizeof(int);
+		*((int*)((char*)sending_buffer + 4)) = htonl(2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
+		*((int*)((char*)sending_buffer + 8)) = htonl(frame_size);
+		*((int*)((char*)sending_buffer + 12)) = htonl(sizeof(int) * video_enc.no_blocks);
 		*(uint16_t*)((char*)sending_buffer + 16) = htons(video_enc.image_width);
 		*(uint16_t*)((char*)sending_buffer + 18) = htons(video_enc.image_height);
 		memcpy(sending_buffer + 20, video_enc.screen_bits, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks]);
+		memcpy(sending_buffer + 20 + 2 * ((int*)video_enc.offsets)[video_enc.no_blocks],
+		 video_enc.offsets, sizeof(int) * video_enc.no_blocks);
+		printf("frame size is: %d, other numbers: %d %d\n", 
+		frame_size, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks], sizeof(int) * video_enc.no_blocks);
 
-		int sent = TCP_Socket_send_data(sock, 0, sending_buffer, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + 20);
+		int sent = TCP_Socket_send_data(sock, 0, sending_buffer, frame_size + 20);
 		if (sent == -1)
 		{
 			/* The client disconnected :(*/
-			/* printf("The client disconnected\n"); */
+			printf("The client disconnected\n"); 
 			TCP_Socket_accept_new_connection(sock, 0);
-			/* printf("Accepted new connection\n"); */
+			printf("Accepted new connection\n"); 
 		}
 		else if (sent != 2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + 20)
 		{
-			int sent2 = TCP_Socket_send_data(sock, 0, sending_buffer, 2 * ((int*)video_enc.offsets)[video_enc.no_blocks] + 20 - sent);
+			int sent2 = TCP_Socket_send_data(sock, 0, sending_buffer, frame_size - sent);
 			if (sent2 < 0)
 			{
 				printf("The client disconnected\n");
@@ -394,7 +395,7 @@ int main (int argc, char *argv[])
 
 		printf("Pipeline %ld and kernel time: %ld\n", en-st, ret);
 		/* calculate to 24fps*/
-		SDL_Delay(1);
+		SDL_Delay(200);
 	}
 
 	return 0;

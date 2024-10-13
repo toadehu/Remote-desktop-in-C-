@@ -175,15 +175,15 @@ void ARGBToYUV420(unsigned char **argb, int width, int height, unsigned char **y
             int r = (byte)*(*argb + argb_index);
             argb_index+=2; /* Skip the alpha channel*/
 
-            int y = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
-            int u = ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128;
-            int v = ((112 * r - 94 * g - 18 * b + 128) >> 8) + 128;
+            int y = (0.299 * r + 0.587 * g + 0.114 * b);
 
             y_plane[y_index] = (char)(y < 0 ? 0 : (y > 255 ? 255 : y));
             y_index+=1;
 
             if (j % 2 == 0 && i % 2 == 0) 
             {
+                int u = (128 -0.14713 * r - 0.28886 * g + 0.436 * b);
+                int v = (128 + 0.615 * r - 0.51499 * g - 0.10001 * b);
                 u_plane[uv_index] = (char)(u < 0 ? 0 : (u > 255 ? 255 : u));
                 v_plane[uv_index] = (char)(v < 0 ? 0 : (v > 255 ? 255 : v));
                 uv_index+=1;

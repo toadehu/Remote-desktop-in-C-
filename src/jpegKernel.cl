@@ -623,4 +623,9 @@ __kernel void decode_jpeg(__global short* src, /* This is the encoded global_rle
     {
       decode_block(src, dst, blk_pos, width, height, blk_id, type, phi);
     }
+	if (blk_id == 0)
+	{
+		printf("w and h are: %d %d\n", width, height);
+		
+	}
 }
