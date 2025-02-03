@@ -121,6 +121,11 @@ struct OpenCLFunctionWrapper* createOpenCLWrapperStruct(char *arg1, int type, ch
 
 struct OpenCLFunctionWrapper* createSharedContextOpenCLWrapper(struct OpenCLFunctionWrapper *original, const char *arg1, int type, char *kernel_name, char *build_log, int queue_flags);
 
+
+struct OpenCLFunctionWrapper* createSharedContextOpenCLWrapper_fromSameFile (struct OpenCLFunctionWrapper *original, char *kernel_name);
+
+#define EMPTY 0
+
 /**
  * @brief sets the number of data buffers that are going to be used. It does NOT create any data buffers.
  *
@@ -182,7 +187,7 @@ int change_buf_flags(struct OpenCLFunctionWrapper *source, void* ptr, uint32_t n
  * @param var2 the second size variable (should be set for dimension > 1)
  * @param var3 the third size variable  (should be set if dimension is 3)
 */
-void set_dimension_and_values(struct OpenCLFunctionWrapper* wrapper, int dimension, int var1, int var2, int var3);
+void set_dimension_and_values(struct OpenCLFunctionWrapper* wrapper, int dimension, int var1, int var2, int var3); /* Should use va_args here too to be honest */
 
 /**
  * @brief Sets the local work-item size (if needed, one can just not set it)

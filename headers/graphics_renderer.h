@@ -118,6 +118,11 @@ void renderer_update_bg(GRAPHICS_RENDERER* renderer, char* data, int flags)
     image_element_update_graphics(renderer -> images[0][0], data, flags);
 }
 
+image_element *renderer_get_bg(GRAPHICS_RENDERER *renderer)
+{
+    return renderer->images[0][0];
+}
+
 /* Update the sizes of the images*/
 void renderer_update_rects(GRAPHICS_RENDERER* renderer)
 {

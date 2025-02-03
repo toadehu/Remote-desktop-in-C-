@@ -19,7 +19,7 @@ __constant float LQM2[8][8] = {{ 16, 11, 10, 16, 24, 40, 51, 61 },
   { 49, 64, 78, 87, 103, 121, 120, 101 },
   { 72, 92, 95, 98, 112, 100, 103, 99 }};
 
-__constant float LQM[8][8] = {{ 8,  6,  6,  7,  6,  5,  8,  7},
+__constant float LQM3[8][8] = {{ 8,  6,  6,  7,  6,  5,  8,  7},
  { 7,  7,  9,  9,  8, 10, 12, 20},
  {13, 12, 11, 11, 12, 25, 18, 19},
  {15, 20, 29, 26, 31, 30, 29, 26},
@@ -37,7 +37,7 @@ __constant float CQM2[8][8] = {{ 17, 18, 24, 47, 99, 99, 99, 99 },
   { 99, 99, 99, 99, 99, 99, 99, 99 },
   { 99, 99, 99, 99, 99, 99, 99, 99 }};
 
-__constant float CQM[8][8] = {{ 9,  9,  9, 12, 11, 12, 24, 13},
+__constant float CQM3[8][8] = {{ 9,  9,  9, 12, 11, 12, 24, 13},
  {13, 24, 50, 33, 28, 33, 50, 50},
  {50, 50, 50, 50, 50, 50, 50, 50},
  {50, 50, 50, 50, 50, 50, 50, 50},
@@ -46,6 +46,24 @@ __constant float CQM[8][8] = {{ 9,  9,  9, 12, 11, 12, 24, 13},
  {50, 50, 50, 50, 50, 50, 50, 50},
  {50, 50, 50, 50, 50, 50, 50, 50}};
 
+/*Source for these matrices: https://www.jatit.org/volumes/Vol70No3/24Vol70No3.pdf*/
+__constant float LQM[8][8] = {{16, 14, 13, 15, 19, 28, 37, 55},
+{14, 13, 15, 19, 28, 37, 55, 64},
+{13, 15, 19, 28, 37, 55, 64, 83},
+{15, 19, 28, 37, 55, 64, 83, 103},
+{19, 28, 37, 55, 64, 83, 103, 117},
+{28, 37, 55, 64, 83, 103, 117, 117},
+{37, 55, 64, 83, 103, 117, 117, 111},
+{55, 64, 83, 103, 117, 117, 111, 90}};
+
+__constant float CQM[8][8] = {{18, 18, 23, 34, 45, 61, 71, 92},
+{18, 23, 34, 45, 61, 71, 92, 92},
+{23, 34, 45, 61, 71, 92, 92, 104},
+{34, 45, 61, 71, 92, 92, 104, 115},
+{45, 61, 71, 92, 92, 104, 115, 119},
+{61, 71, 92, 92, 104, 115, 119, 112},
+{71, 92, 92, 104, 115, 119, 112, 106},
+{92, 92, 104, 115, 119, 112, 106, 100}};
 
 __constant uchar _posX[64] = { 0, 0, 1, 2, 1, 0, 0, 1, 2, 3, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 4, 5, 6, 7, 7, 6, 5, 6, 7, 7 };
 __constant uchar _posY[64] = { 0, 1, 0, 0, 1, 2, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 5, 6, 7, 7, 6, 7 };
@@ -89,10 +107,6 @@ void apply_jpeg(__global const uchar* src,
         offset = width * height * 5;
       }
     }}
-	if (get_global_id(0) == 0 && get_global_id(1) == 0 && get_global_id(2) == 2)
-	{
-		printf("offset is: %d\n", offset);
-	}
 
     for (i = pos_h; i < pos_h + 8; ++i)
     {
@@ -180,42 +194,8 @@ void apply_jpeg(__global const uchar* src,
       }
     }
 
-    /* Error Diffusion */
-    #pragma unroll
-    for (i = 0; i < 8; ++i)
-    {
-        for (j = 0; j < 8; ++j)
-        {
-            float quantized_value = round(block[i][j]);
-            float error = block[i][j] - quantized_value;
-            block[i][j] = quantized_value;
-
-            // Distribute the error to neighboring pixels within the 8x8 block
-            if (j < 7) // Right neighbor (i, j+1)
-            {
-                block[i][j + 1] += error * 7.0f / 16.0f;
-            }
-            if (i < 7) // Below neighbors
-            {
-                if (j > 0) // Bottom-left (i+1, j-1)
-                {
-                    block[i + 1][j - 1] += error * 3.0f / 16.0f;
-                }
-                block[i + 1][j] += error * 5.0f / 16.0f; // Directly below (i+1, j)
-                if (j < 7) // Bottom-right (i+1, j+1)
-                {
-                    block[i + 1][j + 1] += error * 1.0f / 16.0f;
-                }
-            }
-            //if (block[i][j] < -50)
-            //  block[i][j] = -50.0;
-            //else if (block[i][j] > 255)
-            //  block[i][j] = 255.0;
-        }
-    }
-
     /* TODO Perform RLE and final encode */
-    float cur = block[0][0];
+    int cur = (int)block[0][0];
     int ap = 1, pos = offset/64 + (width/8) * get_global_id(1) + get_global_id(0);
     __global short *tempRLE = global_rle + pos * 128;
     __private int rleSize = 0;
@@ -223,7 +203,7 @@ void apply_jpeg(__global const uchar* src,
 
     for (i = 1; i < 64; ++i)
     {
-        float cval = block[_posX[i]][_posY[i]];
+        int cval = (int)block[_posX[i]][_posY[i]];
 
         if (cval != cur)
         {
@@ -241,6 +221,8 @@ void apply_jpeg(__global const uchar* src,
     tempRLE[rleSize++] = ap;
     tempRLE[rleSize++] = (short)cur;
     offsets[pos + 1] = rleSize;
+    if (rleSize < 0)
+      printf("Negative size at position: %d\n", pos);
     /* Now Final encode will be done in another function */
 
 }
@@ -361,49 +343,84 @@ unsigned int get_block_id(int width, int height, int channel, int type, int corn
   return ret;
 }
 
-void apply_gaussian_blur(float block[8][8]) {
-    float blurred_block[8][8] = {0};
-    int i, j, di, dj;
+void apply_gaussian_blur(float block[8][8])
+{
+    // 3x3 Gaussian kernel with sigma = 1.0
     float gaussian_kernel[3][3] = {
-        {0.0625, 0.125, 0.0625},
-        {0.125,  0.25,  0.125},
-        {0.0625, 0.125, 0.0625}
+        {1.0f / 16, 2.0f / 16, 1.0f / 16},
+        {2.0f / 16, 4.0f / 16, 2.0f / 16},
+        {1.0f / 16, 2.0f / 16, 1.0f / 16}
     };
 
-    // Apply 3x3 Gaussian kernel across the 8x8 block
-    for (i = 0; i < 8; ++i) {
-        for (j = 0; j < 8; ++j) {
-            float sum = 0.0;
-            for (di = -1; di <= 1; ++di) {
-                for (dj = -1; dj <= 1; ++dj) {
-                    int x = i + di;
-                    int y = j + dj;
-		    /*if (x < 0)
-		    	x = 1;
-		    if (x >= 8)
-		    	x = 6;
-		    if (y < 0)
-		    	y = 1;
-		    if (y >= 8)
-		    	y = 6;
-                    */
-		    // Ensure we don't go out of bounds (border handling)
-                    if (x >= 0 && x < 8 && y >= 0 && y < 8) {
-                        sum += block[x][y] * gaussian_kernel[di+1][dj+1];
-                    }
-		    else
-		    	sum += block[i][j] * gaussian_kernel[di + 1][dj + 1];
-                }
-            }
-            blurred_block[i][j] = sum;
+    float temp_block[8][8];
+
+    // Apply the Gaussian kernel to each pixel, ignoring the edges for simplicity
+    for (int i = 1; i < 7; ++i) {
+        for (int j = 1; j < 7; ++j) {
+            temp_block[i][j] = 
+                block[i - 1][j - 1] * gaussian_kernel[0][0] + 
+                block[i - 1][j]     * gaussian_kernel[0][1] + 
+                block[i - 1][j + 1] * gaussian_kernel[0][2] +
+
+                block[i][j - 1]     * gaussian_kernel[1][0] + 
+                block[i][j]         * gaussian_kernel[1][1] + 
+                block[i][j + 1]     * gaussian_kernel[1][2] +
+
+                block[i + 1][j - 1] * gaussian_kernel[2][0] + 
+                block[i + 1][j]     * gaussian_kernel[2][1] + 
+                block[i + 1][j + 1] * gaussian_kernel[2][2];
         }
     }
 
-    // Copy the result back to the original block
-    for (i = 0; i < 8; ++i) {
-        for (j = 0; j < 8; ++j) {
-            block[i][j] = blurred_block[i][j];
+    // Copy the blurred values back into the original block
+    for (int i = 1; i < 7; ++i) {
+        for (int j = 1; j < 7; ++j) {
+            block[i][j] = temp_block[i][j];
         }
+    }
+}
+
+// Helper function to check if a pixel is white (close to 255)
+inline bool isWhite(float pixel_value, float white_threshold) {
+    return pixel_value > white_threshold;
+}
+
+// Helper function to check if a pixel is black (close to 0)
+inline bool isBlack(float pixel_value, float black_threshold) {
+    return pixel_value < black_threshold;
+}
+
+// Adjust the pixel value based on its neighbors
+void adjust_pixel_based_on_neighbors(float block[8][8], int i, int j, float white_threshold, float black_threshold) {
+    int neighbors_count = 0;
+    float neighbors_sum = 0.0;
+    
+    // Iterate over the neighbors (3x3 area, skip the center pixel itself)
+    for (int di = -1; di <= 1; ++di) {
+        for (int dj = -1; dj <= 1; ++dj) {
+            if (di == 0 && dj == 0) continue; // Skip the center pixel itself
+            
+            int ni = i + di;
+            int nj = j + dj;
+
+            // Make sure the neighbor is within bounds
+            if (ni >= 0 && ni < 8 && nj >= 0 && nj < 8) {
+                neighbors_sum += block[ni][nj];
+                neighbors_count++;
+            }
+        }
+    }
+
+    float current_pixel = block[i][j];
+    float neighbors_avg = neighbors_sum / neighbors_count;
+
+    // Check for extreme differences and adjust the pixel
+    if (isWhite(current_pixel, white_threshold) && neighbors_avg < black_threshold) {
+        // If the pixel is white and neighbors are close to black, adjust towards neighbors
+        block[i][j] = (current_pixel + neighbors_avg) / 2.0;
+    } else if (isBlack(current_pixel, black_threshold) && neighbors_avg > white_threshold) {
+        // If the pixel is black and neighbors are close to white, adjust towards neighbors
+        block[i][j] = (current_pixel + neighbors_avg) / 2.0;
     }
 }
 
@@ -415,6 +432,8 @@ void apply_sharpening(float block[8][8]) {
         {-1,   5, -1},
         { 0,  -1,  0}
     };
+
+    float norm = 0.0f;
 
     for (i = 0; i < 8; ++i) {
         for (j = 0; j < 8; ++j) {
@@ -428,7 +447,7 @@ void apply_sharpening(float block[8][8]) {
                     }
                 }
             }
-            sharpened_block[i][j] = sum;
+            sharpened_block[i][j] = clamp(sum, 0.0f, 230.0f);
         }
     }
 
@@ -568,8 +587,21 @@ void decode_block(__global short* src,
       barrier(CLK_LOCAL_MEM_FENCE);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
-    //apply_gaussian_blur(cur_block);
-    //apply_sharpening(cur_block);
+
+  // Apply the neighbor adjustment after IDCT but before writing the block
+  float white_threshold = 250.0;  // Threshold to consider a pixel "white"
+  float black_threshold = 5.0;   // Threshold to consider a pixel "black"
+
+  for (i = 0; i < 8; ++i) 
+  {
+      for (j = 0; j < 8; ++j) 
+      {
+          // Adjust the pixel based on its neighbors
+          adjust_pixel_based_on_neighbors(cur_block, i, j, white_threshold, black_threshold);
+      }
+  }
+  //apply_sharpening(cur_block);
+  apply_gaussian_blur(cur_block);
 
 
 	/* We are now ready to do the task of writing the image data at long last */
@@ -623,9 +655,4 @@ __kernel void decode_jpeg(__global short* src, /* This is the encoded global_rle
     {
       decode_block(src, dst, blk_pos, width, height, blk_id, type, phi);
     }
-	if (blk_id == 0)
-	{
-		printf("w and h are: %d %d\n", width, height);
-		
-	}
 }

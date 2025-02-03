@@ -18,6 +18,7 @@
 #include "basic_video.h"
 #include "inputs.h"
 #include "opencl_wrap.h"
+#include "cl_shared_items.h"
 
 
 const int YUV420 = 1; /* Y Cb Cr with 4 : 2 : 0 subsamping (channels Cb and Cr are down to 1/4 size) */

@@ -43,6 +43,8 @@ void clW_get_last_error(void)
         case INVALID_PTR: printf("Invalid pointer passed\n");
         default: printf("Unkown error: %d (-1 means no error), opencl error code: %d\n", last_error, (int)last_err); break;
     }
+    last_error = 0;
+    last_err = 0;
 }
 
 const char *clGetErrorString(cl_int error)
@@ -477,6 +479,44 @@ struct OpenCLFunctionWrapper* createSharedContextOpenCLWrapper (struct OpenCLFun
     return wrapper; /*success*/
 }
 
+struct OpenCLFunctionWrapper* createSharedContextOpenCLWrapper_fromSameFile (struct OpenCLFunctionWrapper *original, char *kernel_name)
+{
+    if (!original)
+    {
+        seterr(BAD_WRAPPER_REFERENCE, -1);
+        return NULL;
+    }
+
+    OpenCLFunctionWrapper *wrapper;
+    cl_int err;
+
+    wrapper = (OpenCLFunctionWrapper*)malloc(sizeof(OpenCLFunctionWrapper));
+    if (!wrapper)
+    {
+        seterr(BAD_WRAPPER_MALLOC, -1);
+        return NULL;
+    }
+
+    wrapper->context  = original->context;
+    wrapper->device   = original->device;
+    wrapper->platform = original->platform;
+    wrapper->queue = original->queue;
+    wrapper->program = original->program;
+
+    wrapper->kernel = clCreateKernel(wrapper->program, kernel_name, &err);
+    if (err != CL_SUCCESS)
+    {
+        clReleaseProgram(wrapper->program);
+        clReleaseCommandQueue(wrapper->queue);
+        seterr(BAD_KERNEL, err);
+        free(wrapper);
+        return NULL;
+    }
+
+	wrapper -> local_size_set = -1;
+  return wrapper; /*success*/
+}
+
 /**
  * @brief sets the number of data buffers that are going to be used. It does NOT create any data buffers.
  *
@@ -771,6 +811,8 @@ int64_t call_function(struct OpenCLFunctionWrapper* wrapper, int flags)
     {
         for (i = 0; i < wrapper->nobuf; i+=1)
         {
+            if (wrapper->buffers[i] == EMPTY)
+              continue;
             if ((wrapper->datatypes[i] & FROM_MEMORY) != 0)
             {
                 err = clEnqueueWriteBuffer(wrapper->queue, wrapper->buffers[i], CL_TRUE, 0, wrapper->sizes[i], wrapper->original_data[i], 0, NULL, NULL);
@@ -808,6 +850,8 @@ int64_t call_function(struct OpenCLFunctionWrapper* wrapper, int flags)
     {
         for (i = 0; i < wrapper->nobuf; i+=1)
         {
+            if (wrapper->buffers[i] == EMPTY)
+              continue;
             if ((wrapper->datatypes[i] & TO_MEMORY) != 0)
             {
                 err = clEnqueueReadBuffer(wrapper->queue, wrapper->buffers[i], CL_TRUE, 0, wrapper->sizes[i], wrapper->original_data[i], 0, NULL, NULL);

@@ -403,7 +403,8 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
 }
 
 
-void capture_one_display (int monitor_index, unsigned char** _buffer, int* _size, int* _width, int* _height)
+
+void capture_one_display (int monitor_index, char** _buffer, int* _size, int* _width, int* _height)
 {
 #ifdef __linux__
 
@@ -460,11 +461,99 @@ void capture_one_display (int monitor_index, unsigned char** _buffer, int* _size
 
     // Allocate memory if the buffer size changes
     int image_size = monitor_width * monitor_height * (image->bits_per_pixel >> 3);
-    if ((*_size) != image_size) {
+    if ((*_size) < image_size) 
+    {
         if (*_buffer != NULL) {
             free(*_buffer);
         }
-        *_buffer = (unsigned char*)__aligned_malloc(image_size, 16);
+        *_buffer = (char*)__aligned_malloc(image_size, 1024);
+        (*_size) = image_size;
+    }
+
+
+    #ifdef _DEBUG
+    printf("Captured monitor screen size: %d, bit depth: %d\n", (*_size), image->bits_per_pixel);
+    #endif
+
+    // Copy the image data into the buffer
+    memcpy(*_buffer, image->data, image_size);
+
+    #ifdef _DEBUG
+    printf("Screen data copied successfully\n");
+    #endif
+
+    // Clean up resources
+    XDestroyImage(image);
+    XFree(screens);
+    XCloseDisplay(display);
+
+    #ifdef _DEBUG
+    printf("Finished capturing screenshot from monitor %d\n", monitor_index);
+    #endif
+#endif
+#endif
+}
+
+void capture_one_display_fixed (int monitor_index, char* _buffer, int *_size, int* _width, int* _height)
+{
+#ifdef __linux__
+
+#ifdef HAVE_X11
+    Display* display = XOpenDisplay(NULL);
+    if (!display) {
+        printf("Unable to open X display\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int screen = DefaultScreen(display);
+
+    if (!XineramaIsActive(display)) {
+        printf("Xinerama is not active\n");
+        XCloseDisplay(display);
+        exit(EXIT_FAILURE);
+    }
+
+    // Get the number of monitors and their information
+    int num_screens;
+    XineramaScreenInfo* screens = XineramaQueryScreens(display, &num_screens);
+    if (!screens) {
+        printf("Unable to query Xinerama screens\n");
+        XCloseDisplay(display);
+        exit(EXIT_FAILURE);
+    }
+
+    if (monitor_index >= num_screens || monitor_index < 0) {
+        printf("Invalid monitor index. There are %d monitors.\n", num_screens);
+        XFree(screens);
+        XCloseDisplay(display);
+        exit(EXIT_FAILURE);
+    }
+
+    // Get the monitor's attributes (width, height, and its position in the overall screen layout)
+    XineramaScreenInfo monitor = screens[monitor_index];
+    int monitor_width = monitor.width;
+    int monitor_height = monitor.height;
+    int x_offset = monitor.x_org;
+    int y_offset = monitor.y_org;
+
+    // Set _width and _height to the dimensions of the captured monitor screen
+    *_width = monitor_width;
+    *_height = monitor_height;
+
+    // Capture the screen area specific to the monitor using the offsets and dimensions
+    XImage* image = XGetImage(display, RootWindow(display, screen), x_offset, y_offset, monitor_width, monitor_height, AllPlanes, ZPixmap);
+    if (!image) {
+        printf("Unable to get image data from the selected monitor\n");
+        XFree(screens);
+        XCloseDisplay(display);
+        exit(EXIT_FAILURE);
+    }
+
+    // Allocate memory if the buffer size changes
+    int image_size = monitor_width * monitor_height * (image->bits_per_pixel >> 3);
+    if ((*_size) < image_size) 
+    {
+        return -1;
     }
 
     (*_size) = image_size;
@@ -474,7 +563,7 @@ void capture_one_display (int monitor_index, unsigned char** _buffer, int* _size
     #endif
 
     // Copy the image data into the buffer
-    memcpy(*_buffer, image->data, *_size);
+    memcpy(_buffer, image->data, *_size);
 
     #ifdef _DEBUG
     printf("Screen data copied successfully\n");
