@@ -320,7 +320,7 @@ int main(int argc, char* argv[])
   create_and_set_buf(video_dec.openclKernels[2], video_dec.screen_bits, 1600 * 1000 * 4, sizeof(void*), 4, READWRITE, TO_MEMORY);
   set_kernel_arg(video_dec.openclKernels[2], 5, sizeof(int), 1600);
   set_kernel_arg(video_dec.openclKernels[2], 6, sizeof(int), 1000);
-  set_kernel_arg(video_dec.openclKernels[2], 7, sizeof(int), 3);
+  set_kernel_arg(video_dec.openclKernels[2], 7, sizeof(int), 4);
   set_kernel_arg(video_dec.openclKernels[2], 8, sizeof(int), 3);
   set_kernel_arg(video_dec.openclKernels[2], 9, sizeof(int), 3);
   set_dimension_and_values(video_dec.openclKernels[2], 2, 1600, 1000, 1);  
