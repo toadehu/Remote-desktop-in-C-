@@ -213,7 +213,7 @@ void image_element_update_graphics(image_element* img, char* data, int type_of_i
             }
             SDL_LockTexture(img->texture, NULL, &img->pixels, &img->pitch);
             
-            img->pixels = __aligned_realloc(img->pixels, img->pixels_size, img->rect.w * img->rect.h * 4, 4096);
+            img->pixels = __aligned_realloc(img->pixels, img->pixels_size, img->rect.w * img->rect.h * 4, 1024);
 
             memcpy(img -> pixels, data, img -> rect.w * img -> rect.h * 4);
 

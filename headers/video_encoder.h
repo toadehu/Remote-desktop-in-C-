@@ -158,7 +158,7 @@ void ARGBToYUV420(unsigned char **argb, int width, int height, unsigned char **y
     int plane_size = width * height;
     unsigned char *y_plane = *yuv;
     unsigned char *u_plane = *yuv + plane_size;
-    unsigned char *v_plane = *yuv + plane_size + (plane_size >> 2);
+    unsigned char *v_plane = *yuv + plane_size + (plane_size  / 4);
 
     int argb_index = 0;
     int y_index = 0, uv_index = 0;
@@ -175,7 +175,7 @@ void ARGBToYUV420(unsigned char **argb, int width, int height, unsigned char **y
             int r = (byte)*(*argb + argb_index);
             argb_index+=2; /* Skip the alpha channel*/
 
-            int y = (0.299 * r + 0.587 * g + 0.114 * b);
+            int y = (0.299 * r + 0.587 * g + 0.114 * b) + 16;
 
             y_plane[y_index] = (char)(y < 0 ? 0 : (y > 255 ? 255 : y));
             y_index+=1;
@@ -304,23 +304,22 @@ void YUV420ToARGB(char *yuv, int width, int height, char *argb)
     char* y_plane = yuv;
     char* u_plane = yuv + plane_size;
     char* v_plane = yuv + plane_size + plane_size / 4;
+    int y_ind = 0, u_ind = 0;
     int i,j;
     for (j = 0; j < height; j+=1){
-        int vert_offset = (j >> 1) * (width >> 1);
-        int vert_offset2 = j * width;
         for (i = 0; i < width; i+=1)
         {
-            int y = (byte)y_plane[vert_offset2 + i];
-            int u = (byte)u_plane[vert_offset + (i >> 1)];
-            int v = (byte)v_plane[vert_offset + (i >> 1)];
+            int y = (byte)y_plane[y_ind++];
+            int u = (byte)u_plane[u_ind];
+            int v = (byte)v_plane[u_ind];
+            u_ind += (!(i&1)) & (!(j&1));
 
-            int c = y - 16;
-            int d = u - 128;
-            int e = v - 128;
-
-            int r = (298 * c + 409 * e + 128) >> 8;
-            int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-            int b = (298 * c + 516 * d + 128) >> 8;
+            u -= 128;
+            v -= 128;
+            
+            int r = round(y               + 1.402 * v);
+            int g = round(y - 0.344 * u - 0.714 * v);
+            int b = round(1.147 * y + 1.773 * u);
 
             r = r < 0 ? 0 : (r > 255 ? 255 : r);
             g = g < 0 ? 0 : (g > 255 ? 255 : g);
@@ -386,166 +385,6 @@ void separate_channels_inplace(char *buffer, int num_pixels)
     }
 }
 
-#ifdef HAVE_OpenCL
-
-#include <CL/cl.h>
-
-const char *kernel_src =
-"__kernel void resize_image_bilinear_kernel(__global const uchar *src, __global uchar *dst, int src_width, int src_height, int dst_width, int dst_height, int channels, float x_ratio, float y_ratio) {"
-"    int dst_x = get_global_id(0);"
-"    int dst_y = get_global_id(1);"
-""
-"    if (dst_x < dst_width && dst_y < dst_height) {"
-"        float src_x = dst_x * x_ratio;"
-"        float src_y = dst_y * y_ratio;"
-""
-"        for (int channel = 0; channel < channels; channel++) {"
-"            uchar Q11 = get_interpolated_value(src, src_x, src_y, src_width, src_height, channels, channel);"
-"            uchar Q12 = get_interpolated_value(src, src_x, src_y + 1, src_width, src_height, channels, channel);"
-"            uchar Q21 = get_interpolated_value(src, src_x + 1, src_y, src_width, src_height, channels, channel);"
-"            uchar Q22 = get_interpolated_value(src, src_x + 1, src_y + 1, src_width, src_height, channels, channel);"
-""
-"            float R1 = ((src_x + 1 - src_x) / (src_x + 1 - src_x)) * Q11 + ((src_x - src_x) / (src_x + 1 - src_x)) * Q21;"
-"            float R2 = ((src_x + 1 - src_x) / (src_x + 1 - src_x)) * Q12 + ((src_x - src_x) / (src_x + 1 - src_x)) * Q22;"
-""
-"            dst[(dst_y * dst_width + dst_x) * channels + channel] = (uchar)(((src_y + 1 - src_y) / (src_y + 1 - src_y)) * R1 + ((src_y - src_y) / (src_y + 1 - src_y)) * R2);"
-"        }"
-"    }"
-"}"
-""
-"uchar get_interpolated_value(__global const uchar *data, int x, int y, int width, int height, int channels, int channel) {"
-"    if (x < 0 || y < 0 || x >= width || y >= height) {"
-"        return 0;"
-"    }"
-"    return data[(y * width + x) * channels + channel];"
-"}";
-
-void CL_resize_image_bilinear(const char *src, char **dst, int src_width, int src_height, int dst_width, int dst_height, int channels)
- {
-    float x_ratio = (float)(src_width) / (float)dst_width;
-    float y_ratio = (float)(src_height) / (float)dst_height;
-
-    if (*old_dst_size != dst_width * dst_height * channels || dst == NULL)
-    {
-        *old_dst_size = dst_width * dst_height * channels;
-        printf("Reallocating dst to %d bytes\n", *old_dst_size);
-        *dst = realloc(*dst, *old_dst_size);
-        printf("Reallocated %p to %d bytes\n", *dst, *old_dst_size);
-    }
-
-    cl_int err;
-    cl_platform_id platform;
-    cl_device_id device;
-    cl_context context;
-    cl_command_queue queue;
-    cl_mem src_buf, dst_buf;
-    cl_program program;
-    cl_kernel kernel;
-    size_t global_size[2];
-
-    err = clGetPlatformIDs(1, &platform, NULL);
-    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
-
-    context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
-    queue = clCreateCommandQueue(context, device, 0, &err);
-
-    src_buf = clCreateBuffer(context, CL_MEM_READ_ONLY, src_width * src_height * channels, NULL, &err);
-    dst_buf = clCreateBuffer(context, CL_MEM_WRITE_ONLY, dst_width * dst_height * channels, NULL, &err);
-
-    err = clEnqueueWriteBuffer(queue, src_buf, CL_TRUE, 0, src_width * src_height * channels, src, 0, NULL, NULL);
-
-    program = clCreateProgramWithSource(context, 1, (const char **)&kernel_src, NULL, &err);
-    err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
-
-    kernel = clCreateKernel(program, "resize_image_bilinear_kernel", &err);
-
-    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &src_buf);
-    err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &dst_buf);
-    err |= clSetKernelArg(kernel, 2, sizeof(int), &src_width);
-    err |= clSetKernelArg(kernel, 3, sizeof(int), &src_height);
-    err |= clSetKernelArg(kernel, 4, sizeof(int), &dst_width);
-    err |= clSetKernelArg(kernel, 5, sizeof(int), &dst_height);
-    err |= clSetKernelArg(kernel, 6, sizeof(int), &channels);
-    err |= clSetKernelArg(kernel, 7, sizeof(float), &x_ratio);
-    err |= clSetKernelArg(kernel, 8, sizeof(float), &y_ratio);
-
-    global_size[0] = dst_width;
-    global_size[1] = dst_height;
-
-    err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_size, NULL, 0, NULL, NULL);
-    clFinish(queue);
-
-    err = clEnqueueReadBuffer(queue, dst_buf, CL_TRUE, 0, dst_width * dst_height * channels, *dst, 0, NULL, NULL);
-
-    clReleaseKernel(kernel);
-    clReleaseProgram(program);
-    clReleaseMemObject(src_buf);
-    clReleaseMemObject(dst_buf);
-    clReleaseCommandQueue(queue);
-    clReleaseContext(context);
-}
-
-
-
-#endif
-
-#ifdef HAVE_X86
-
-char get_interpolated_value(const char *src, float x, float y, int width, int height, int channels, int channel)
-{
-	return 69; /* Placeholder */
-}
-
-char bilinear_interpolate_SIMD(const char *src, float x, float y, int width, int height, int channels, int channel)
-{
-    int x1 = (int)x;
-    int x2 = x1 + 1;
-    int y1 = (int)y;
-    int y2 = y1 + 1;
-
-    const __m128i Q11 = _mm_set1_epi8(get_interpolated_value(src, x1, y1, width, height, channels, channel));
-    const __m128i Q12 = _mm_set1_epi8(get_interpolated_value(src, x1, y2, width, height, channels, channel));
-    const __m128i Q21 = _mm_set1_epi8(get_interpolated_value(src, x2, y1, width, height, channels, channel));
-    const __m128i Q22 = _mm_set1_epi8(get_interpolated_value(src, x2, y2, width, height, channels, channel));
-
-    float x1f = (float)x1;
-    const __m128i X1 = _mm_set1_epi32((int)(x1f));
-    const __m128i X2 = _mm_add_epi32(X1, _mm_set1_epi32(1));
-
-    __m128i R1 = _mm_cvtps_epi32(
-        _mm_add_ps(
-            _mm_mul_ps(
-                _mm_sub_ps(_mm_castsi128_ps(X2), _mm_set_ps1(x)),
-                _mm_cvtepi32_ps(_mm_sub_epi32(Q21, Q11))
-            ),
-            _mm_cvtepi32_ps(Q11)
-        )
-    );
-
-    __m128i R2 = _mm_cvtps_epi32(
-        _mm_add_ps(
-            _mm_mul_ps(
-                _mm_sub_ps(_mm_castsi128_ps(X2), _mm_set_ps1(x)),
-                _mm_cvtepi32_ps(_mm_sub_epi32(Q22, Q12))
-            ),
-            _mm_cvtepi32_ps(Q12)
-        )
-    );
-
-    __m128i R = _mm_cvtps_epi32(
-        _mm_add_ps(
-            _mm_mul_ps(
-                _mm_sub_ps(_mm_set_ps1(y2), _mm_set_ps1(y)),
-                _mm_cvtepi32_ps(_mm_sub_epi32(R1, R2))
-            ),
-            _mm_cvtepi32_ps(R2)
-        )
-    );
-
-    return _mm_extract_epi8(R, 0);
-}
-
-#endif
 
 byte bilinear_interpolate(const byte *src, float x, float y, int width, int height, int channels, int channel)
 {

@@ -29,9 +29,9 @@ endif
 
 # Debug configuration
 ifeq ($(version),DEBUG)
-	CFLAGS += -D_DEBUG=1 -g -msse2 -mavx2 -march=native -DHAVE_X86
+	CFLAGS += -D_DEBUG=1 -g -msse2 -march=native -DHAVE_X86
 else ifndef version
-	CFLAGS += -O3 -msse2 -mavx2 -march=native -DHAVE_X86
+	CFLAGS += -O3 -msse2 -march=native -DHAVE_X86
 endif
 
 # X11 or Wayland display server detection
@@ -47,10 +47,10 @@ else
 endif
 
 # Set the linker flags
-LDFLAGS += -lm -lSDL2_ttf -lX11 -lXinerama -lOpenCL -msse2 -mavx2 -march=native
+LDFLAGS += -lm -lSDL2_ttf -lX11 -lXinerama -lOpenCL -march=native
 
 # Source and object files
-SRCS := ../dummy_test.c ../opencl_wrap.c main.c
+SRCS := ../opencl_wrap.c ../dummy_test.c main.c
 OBJS := $(SRCS:.c=.o)
 
 # Name of executable
