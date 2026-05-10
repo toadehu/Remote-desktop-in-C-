@@ -1,0 +1,5 @@
+# Hashes of file build rules.
+a4c0a06d1b1aa2cbe29310ecdf24f534 linux-dmabuf-unstable-v1.c
+b98534b192b9b70d32e6cf8113d31d28 linux-dmabuf-unstable-v1.h
+4e5a77c26e235488792f34adce899816 wlr-screencopy-unstable-v1.c
+4ed5c3bb65fcbe1ef27b6380bb14a775 wlr-screencopy-unstable-v1.h

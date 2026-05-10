@@ -25,8 +25,8 @@ state_machine *state_m;
 typedef unsigned char byte;
 
 /* How often should the key presses buffer be send, in milliseconds */
-const int keybufferinterval = 25; 
- 
+const int keybufferinterval = 25;
+
 char* serverIp, * user;
 int ipver, port;
 
@@ -50,7 +50,7 @@ void add_pos_to_buffer(GRAPHICS_RENDERER* renderer, int screen_width, int screen
 	*((int*)((char*)keypresses + keypresses_size)) = htonl(relativeY);
 	keypresses_size += 4;
 	*((int*)((char*)keypresses + keypresses_size)) = htonl(windowW);
-	keypresses_size += 4;	
+	keypresses_size += 4;
 	*((int*)((char*)keypresses + keypresses_size)) = htonl(windowH);
 	keypresses_size += 4;
 }
@@ -91,13 +91,13 @@ void convert_to_aspect_ratio(int Xcoord, int Ycoord, int srcW, int srcH, int des
 		new_h = (float)srcH * dest_aspect_ratio;
 		Hdiff = (float)srcH - new_h;
 	}
-	
+
 	*rightX = (int)Xcoord + (int)(Wdiff/2);
 	*rightY = (int)Ycoord + (int)(Hdiff/2);
 }
 
 /** @brief Gets and writes the real size of the rectangle that we are actuall drawing unto
- * 
+ *
  * @param srcW the source rectangle width
  * @param srcH the source rectangle height
  * @param destW the destination s rectangle width (server screen width)
@@ -125,7 +125,7 @@ void real_rect(int srcW, int srcH, int destW, int destH, int *goodW, int *goodH)
 		*goodW = (float)(destW - (int)destW%16);
 		*goodH = (float)srcH * dest_aspect_ratio;
 	}
-	
+
 }
 
 bool is_point_inside_rect(int x, int y, int rectX, int rectY, int rectW, int rectH)
@@ -154,7 +154,7 @@ void init_decoder(uint16_t w, uint16_t h)
 	resized_size = res_w * res_h * 4;
 }
 
-inline void update_bufs(void ***bufs, int no_bufs, int *old_sizes, int *new_sizes)
+void update_bufs(void **bufs, int no_bufs, int *old_sizes, int *new_sizes)
 {
   for (int i = 0; i < no_bufs; ++i)
   {
@@ -176,11 +176,11 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 	}
 	if (buffer[0] != new_frame)
 	{
-  /* More cases to handle will come later */ 
+  /* More cases to handle will come later */
   }
 
   int old_buf_size[3] = {screen_width * screen_height * 4, screen_width * screen_height * 3 / 2, screen_width * screen_height * 4};
-  void **bufs[3] = {&screen_bits, &yuv_buffer, &zoom_screen_bits};
+  void *bufs[3] = {&screen_bits, &yuv_buffer, &zoom_screen_bits};
 
 	char encoding_type = buffer[1];
 	/* Get the flags and information from the header */
@@ -188,13 +188,13 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 	int encoded_image_size = ntohl(*(int*)((char*)buffer + 8));
 	int second_pass_size = ntohl(*(int*)((char*)buffer + 12));
 	uint16_t w = ntohs(*(uint16_t*)((char*)buffer + 16));
-	uint16_t h = ntohs(*(uint16_t*)((char*)buffer + 18));		
+	uint16_t h = ntohs(*(uint16_t*)((char*)buffer + 18));
   int new_buf_sizes[3] = {w * h * 4, w * h * 3 / 2, w * h * 4};
 
-	
+
   if (screen_width != (int)w || screen_height != (int)h)
 	{
-    update_bufs(bufs, 3, old_buf_size, new_buf_sizes); 
+    update_bufs(bufs, 3, old_buf_size, new_buf_sizes);
 		screen_width = (int)w;
 		screen_height = (int)h;
 	}
@@ -202,14 +202,14 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
 	printf("first size is: %d and second size is: %d\n", first_size, second_pass_size);
 	rec = TCP_Socket_receive_data_fixed(sock, (char*)video_dec.converted_bits, first_size);
 	rec += TCP_Socket_receive_data_fixed(sock, (char*)video_dec.offsets, second_pass_size);
-			
+
 	/* Yeah no realloc because I am lazy TODO: Fix this piece of shit*/
 	if (screen_width != video_dec.image_width || screen_height != video_dec.image_height)
 	{
 		printf("UNIMPLEMENTED EXIT\n");
 		exit(1);
 	}
-			
+
 	long long int ret = call_function(video_dec.openclKernels[0], 0);
 	if (ret == -1)
 	{
@@ -226,10 +226,10 @@ void receive_and_procees_data(TCP_SOCKET* sock, GRAPHICS_RENDERER* renderer)
   clW_get_last_error();
 
   printf("top pixel: %d %d %d %d\n", resized_screen_bits[0], resized_screen_bits[1], resized_screen_bits[2], (unsigned char)resized_screen_bits[3]);
-  screen_bits = video_dec.converted_bits;
+  screen_bits = (char*)video_dec.converted_bits;
   return;
 
-	/*convert the image to RGB32*/	
+	/*convert the image to RGB32*/
   if (renderer->images[0][0]->rect.w * renderer->images[0][0]->rect.h * 4 > resized_size)
 	{
 		resized_screen_bits = (char*)__aligned_realloc(resized_screen_bits, resized_size, renderer->images[0][0]->rect.w * renderer->images[0][0]->rect.h * 4, 1024);
@@ -288,7 +288,7 @@ int main(int argc, char* argv[])
 
   video_dec.openclKernels = (struct OpenCLFunctionWrapper**)malloc(sizeof(struct OpenCLFunctionWrapper*) * video_dec.kernels);
 
-	video_dec.openclKernels[0] = createOpenCLWrapperStruct("../jpegKernel.cl", KERNEL_FROM_FILE, 
+	video_dec.openclKernels[0] = createOpenCLWrapperStruct("../jpegKernel.cl", KERNEL_FROM_FILE,
 							"decode_jpeg", NULL, 0, 0, 0);
 
 	set_no_buffers(video_dec.openclKernels[0], 6);
@@ -311,7 +311,7 @@ int main(int argc, char* argv[])
   set_kernel_arg(video_dec.openclKernels[1], 4, sizeof(int), 3);
   set_dimension_and_values(video_dec.openclKernels[1], 1, video_dec.image_dim, 1, 1);
 
-  video_dec.openclKernels[2] = createSharedContextOpenCLWrapper_fromSameFile(video_dec.openclKernels[1], "GPU_resize"); 
+  video_dec.openclKernels[2] = createSharedContextOpenCLWrapper_fromSameFile(video_dec.openclKernels[1], "GPU_resize");
   set_no_buffers(video_dec.openclKernels[2], 2);
   copy_buf_from_other(video_dec.openclKernels[1], video_dec.openclKernels[2], video_dec.converted_bits, sizeof(void*), 0, 0);
   set_kernel_arg(video_dec.openclKernels[2], 1, sizeof(int), video_dec.image_width);
@@ -323,7 +323,7 @@ int main(int argc, char* argv[])
   set_kernel_arg(video_dec.openclKernels[2], 7, sizeof(int), 4);
   set_kernel_arg(video_dec.openclKernels[2], 8, sizeof(int), 3);
   set_kernel_arg(video_dec.openclKernels[2], 9, sizeof(int), 3);
-  set_dimension_and_values(video_dec.openclKernels[2], 2, 1600, 1000, 1);  
+  set_dimension_and_values(video_dec.openclKernels[2], 2, 1600, 1000, 1);
 
 	resized_screen_bits = video_dec.screen_bits; //(char*)__aligned_malloc(video_dec.image_dim * 4, 1024);
   resized_size = 1600 * 1000 * 4;
@@ -493,7 +493,7 @@ int main(int argc, char* argv[])
 				break;
 			case SDL_MOUSEBUTTONDOWN:
 				SDL_GetMouseState(&mouseX, &mouseY);
-				
+
 				if (event.button.button == SDL_BUTTON_LEFT)
 				{
 					if (event.button.clicks > 1)
@@ -535,7 +535,7 @@ int main(int argc, char* argv[])
 					keypresses_size += 3;
 				}
 				/* No click just a hold */
-				else 
+				else
 					if (event.button.button == SDL_BUTTON_LEFT)
 					{
 						keypresses[keypresses_size] = mouse_input_hold;
@@ -543,7 +543,7 @@ int main(int argc, char* argv[])
 					}
 
 				add_pos_to_buffer(renderer, screen_width, screen_height);
-				
+
 				break;
 			case SDL_MOUSEWHEEL:
 				keypresses[keypresses_size] = (char)mouse_input_scroll;
@@ -562,7 +562,7 @@ int main(int argc, char* argv[])
 				break;
 			}
 		}
-		
+
 		buffer_current = clock();
 		if (1000 * (buffer_current - buffer_start) > CLOCKS_PER_SEC * keybufferinterval)
 		{
@@ -604,10 +604,10 @@ int main(int argc, char* argv[])
 		}
 
 		clock_t start = clock();
-		
+
 		if (resized_size >= renderer->images[0][0]->rect.w * renderer->images[0][0]->rect.h * 4)
 		{
-      printf("Updating bg size\n");
+            printf("Updating bg size\n");
 			renderer_update_bg(renderer, resized_screen_bits, IMAGE_FROM_RGB32);
 		}
 
@@ -616,10 +616,10 @@ int main(int argc, char* argv[])
 		SDL_GetWindowSize(renderer->window, &renderer->win_rect.w, &renderer->win_rect.h);
 		/*adjust the size of the texture*/
 		renderer_update_rects(renderer);
-		
+
 		/*clear the screen*/
 		SDL_RenderClear(renderer->renderer);
-			
+
 		/*render the images*/
 		renderer_draw_images(renderer);
 

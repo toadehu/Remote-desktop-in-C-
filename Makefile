@@ -1,76 +1,75 @@
-#set the compiler
-CC := gcc
+# --- Compiler and Global Flags ---
+CC      := gcc
+# Added -Iheaders so you don't have to use relative paths in your #include statements
+CFLAGS  := $(shell pkg-config --cflags sdl2 SDL2_image) -Iheaders -ggdb3 -std=c11 -Wall -msse2 -mavx2 -march=native
+LDLIBS  := $(shell pkg-config --libs sdl2 SDL2_image --libs wayland-client) -lm -lSDL2_ttf -lx264 -lxcb -lxcb-image -lX11 -lavcodec -lavutil -lavformat -lOpenCL
 
-#set the compiler flags
-CFLAGS := $(shell pkg-config --cflags sdl2 SDL2_image) -ggdb3 -std=c11 -Wall -msse2 -mavx2 -march=native
-
+# --- Build Logic ---
 ifeq ($(version),DEBUG)
-	CFLAGS += -D_DEBUG=1 -g
-else 
-	CFLAGS += -O3
-endif
-
-ifeq ($(shell test -n "$${DISPLAY+x}" && echo yes),yes)
-    # Running on X
-    CFLAGS+=-DHAVE_X11
-	CFLAGS+=-lX11
-	LDLIBS+=-lX11
-else ifeq ($(shell test -n "$${WAYLAND_DISPLAY+x}" && echo yes),yes)
-    # Running on Wayland
-    CFLAGS+=-DHAVE_WAYLAND
+    CFLAGS += -D_DEBUG=1 -g
 else
-    $(error "Unsupported windowing system")
+    CFLAGS += -O3
 endif
 
-#set the linker flags
-LDFLAGS := $(shell pkg-config --libs sdl2 SDL2_image --libs wayland-client) -lm -lSDL2_ttf -lx264 -lxcb -lxcb-image -lX11 -msse2 -mavx2 -march=native -lavcodec -lavutil -lavformat
+# Windowing System Detection
+# 1. Check for Wayland first (Native)
+ifeq ($(shell test -n "$$WAYLAND_DISPLAY" && echo yes),yes)
+    CFLAGS  += -DHAVE_WAYLAND
+    # Add Wayland libraries if needed, e.g., -lwayland-client
+    $(info Compiling for Wayland)
 
-#set ldlibs
-#LDLIBS += -lyuv
+# 2. Check for X11 second (Legacy/XWayland)
+else ifeq ($(shell test -n "$$DISPLAY" && echo yes),yes)
+    CFLAGS  += -D__HAVE_X11__
+    LDLIBS  += -lX11
+    $(info Compiling for X11)
 
-#add header files here
-HDRS := framework.h
+# Fallback error
+else
+    $(error Unsupported windowing system. Neither DISPLAY nor WAYLAND_DISPLAY is set)
+endif
 
-#add source files here
-SRCS := main.c
+# --- Files and Targets ---
+# Headers (Used for dependency tracking)
+HDRS := $(wildcard headers/*.h)
 
-#generate names of object files
-OBJS := $(SRCS:.c=.o)
+# Client Files
+CLIENT_SRCS := src/ClientApp/main.c src/opencl_wrap.c
+CLIENT_OBJS := $(CLIENT_SRCS:.c=.o)
+CLIENT_EXEC := client_app
 
-#name of executable
-EXEC := casa_manelelor
+# Server Files
+SERVER_SRCS := src/server/main.c src/opencl_wrap.c
+SERVER_OBJS := $(SERVER_SRCS:.c=.o)
+SERVER_EXEC := server_app
 
-#default recipe
-all: $(EXEC)
+# --- Recipes ---
 
-showfont: showfont.c Makefile
-	$(CC) -o $@ $@.c $(CFLAGS) $(LDFLAGS)
+all: $(CLIENT_EXEC) $(SERVER_EXEC)
 
-glfont: glfont.c Makefile
-	$(CC) -o $@ $@.c $(CFLAGS) $(LDFLAGS)
+# Build Client
+$(CLIENT_EXEC): $(CLIENT_OBJS)
+	$(CC) -o $@ $^ $(CFLAGS) $(LDLIBS)
 
-# recipe for building the final executable
-$(EXEC): $(OBJS) $(HDRS) Makefile
-	$(CC) -o $@ $(OBJS) $(CFLAGS) $(LDFLAGS)
+# Build Server
+$(SERVER_EXEC): $(SERVER_OBJS)
+	$(CC) -o $@ $^ $(CFLAGS) $(LDLIBS)
 
-#recipe for building the final object files
-$(OBJS): %.o: %.c $(HDRS) Makefile
+# Generic Rule for Object Files
+# This handles the .c to .o conversion for any file, tracking header changes
+%.o: %.c $(HDRS) Makefile
 	$(CC) -c $(CFLAGS) $< -o $@
 
+# --- Utility Commands ---
 
-test: clean
-	$(MAKE) all version=DEBUG
-	./casa_manelelor
-
-new: clean
-	$(MAKE) all
-	./casa_manelelor
-
-run: $(MAKE) all
-	./casa_manelelor
-
-#recipe to clean the workspace
 clean:
-	rm -f $(EXEC) $(OBJS)
+	rm -f $(CLIENT_EXEC) $(SERVER_EXEC) $(CLIENT_OBJS) $(SERVER_OBJS)
 
-.PHONY: all clean
+# Debug Run Examples
+run_client: $(CLIENT_EXEC)
+	./$(CLIENT_EXEC)
+
+run_server: $(SERVER_EXEC)
+	./$(SERVER_EXEC)
+
+.PHONY: all clean run_client run_server

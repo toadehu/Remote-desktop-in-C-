@@ -1,0 +1,4 @@
+/home/razvan/Remote-desktop-in-C-/build/CMakeFiles/streaming_server.dir
+/home/razvan/Remote-desktop-in-C-/build/CMakeFiles/streaming_client.dir
+/home/razvan/Remote-desktop-in-C-/build/CMakeFiles/edit_cache.dir
+/home/razvan/Remote-desktop-in-C-/build/CMakeFiles/rebuild_cache.dir

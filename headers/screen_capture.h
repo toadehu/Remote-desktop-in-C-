@@ -23,7 +23,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#ifdef HAVE_X11
+#ifdef __HAVE_X11__
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -42,7 +42,7 @@ void* __aligned_malloc(unsigned long size, unsigned long alignment)
     if (alignment < 0)
         alignment = 128;
     if (alignment > 1024 * 128) /* what is bro doing */
-        alignment = 1024 * 128; 
+        alignment = 1024 * 128;
     #ifdef _WIN32
     return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     #elif __unix__
@@ -154,7 +154,7 @@ static const struct wl_output_listener output_listener = {
 
 #ifdef _WIN32
 /*
-typedef struct ScreenCaptureDX 
+typedef struct ScreenCaptureDX
 {
     ID3D11Device* d3d_device;
     ID3D11DeviceContext* d3d_context;
@@ -280,7 +280,7 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
 
 #elif __linux__
 
-#ifdef HAVE_X11
+#ifdef __HAVE_X11__
     /* Connect to the X server*/
     Display* display = XOpenDisplay(NULL);
     Window root = DefaultRootWindow(display);
@@ -373,7 +373,7 @@ void capture_screen(char **_buffer, int *_size, int *_width, int *_height)
         {
             free(*_buffer);
         }
-       *_buffer = (unsigned char *)__aligned_malloc(size, 16);
+       *_buffer = (char *)__aligned_malloc(size, 16);
     }
     /*printf("Top 10 printf before segfault\n");*/
     memcpy(*_buffer, data, size);
@@ -408,7 +408,7 @@ void capture_one_display (int monitor_index, char** _buffer, int* _size, int* _w
 {
 #ifdef __linux__
 
-#ifdef HAVE_X11
+#ifdef __HAVE_X11__
     Display* display = XOpenDisplay(NULL);
     if (!display) {
         printf("Unable to open X display\n");
@@ -461,7 +461,7 @@ void capture_one_display (int monitor_index, char** _buffer, int* _size, int* _w
 
     // Allocate memory if the buffer size changes
     int image_size = monitor_width * monitor_height * (image->bits_per_pixel >> 3);
-    if ((*_size) < image_size) 
+    if ((*_size) < image_size)
     {
         if (*_buffer != NULL) {
             free(*_buffer);
@@ -498,7 +498,7 @@ void capture_one_display_fixed (int monitor_index, char* _buffer, int *_size, in
 {
 #ifdef __linux__
 
-#ifdef HAVE_X11
+#ifdef __HAVE_X11__
     Display* display = XOpenDisplay(NULL);
     if (!display) {
         printf("Unable to open X display\n");
@@ -551,9 +551,9 @@ void capture_one_display_fixed (int monitor_index, char* _buffer, int *_size, in
 
     // Allocate memory if the buffer size changes
     int image_size = monitor_width * monitor_height * (image->bits_per_pixel >> 3);
-    if ((*_size) < image_size) 
+    if ((*_size) < image_size)
     {
-        return -1;
+        return;
     }
 
     (*_size) = image_size;

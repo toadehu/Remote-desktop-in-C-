@@ -39,7 +39,7 @@ void clW_get_last_error(void)
         case INVALID_BUF: printf("Encountered an error freeing a cl_mem object, opencl error code: %d\n", (int)last_err);
         case BAD_PLATFORM_NUM: printf("Platform specified doesn't exist, either you used a negative number or too big\n"); break;
         case BAD_DEVICE_NUM: printf("Specified device number is too large for the given platform\n"); break;
-	      case NO_OPENCL: printf("Something went wrong when benchmarking the hardware, verify GPU drivers and try again\n");break;
+	    case NO_OPENCL: printf("Something went wrong when benchmarking the hardware, verify GPU drivers and try again\n");break;
         case INVALID_PTR: printf("Invalid pointer passed\n");
         default: printf("Unkown error: %d (-1 means no error), opencl error code: %d\n", last_error, (int)last_err); break;
     }
@@ -188,7 +188,8 @@ struct OpenCLFunctionWrapper* createOpenCLWrapperStruct(char* arg1, int type, ch
         if (fp == NULL)
 		{
 			seterr(BAD_FILE_PATH, -1);
-        	evalnull(fp);
+			goto ABORT;
+        	// evalnull(fp);
 		}
 
         source_str = (char*)malloc(MAX_SOURCE_SIZE);
